@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .opencode
+
+# Environment variables (API keys)
+.env

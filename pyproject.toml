@@ -1,7 +1,14 @@
 [project]
 name = "agente-extrator-dados-comprovantes-bancarios"
 version = "0.1.0"
-description = "Add your description here"
+description = "Módulo de extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC) usando Agno e Groq"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "agno>=0.5.0",
+    "groq>=0.3.0",
+    "pdf2image>=1.17.0",
+    "Pillow>=10.0.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]

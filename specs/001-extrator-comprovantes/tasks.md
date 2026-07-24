@@ -14,9 +14,9 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Purpose**: Initialize project with dependencies and configuration
 
-- [ ] T001 Configure pyproject.toml with dependencies (agno, groq, pdf2image, Pillow, pydantic, python-dotenv)
-- [ ] T002 [P] Create .env.example with GROQ_API_KEY placeholder
-- [ ] T003 [P] Create agente_extrator/ package directory structure
+- [X] T001 Configure pyproject.toml with dependencies (agno, groq, pdf2image, Pillow, pydantic, python-dotenv)
+- [X] T002 [P] Create .env.example with GROQ_API_KEY placeholder
+- [X] T003 [P] Create agente_extrator/ package directory structure
 
 ---
 
@@ -24,9 +24,9 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Purpose**: Core schemas and utilities that ALL user stories depend on
 
-- [ ] T004 Create agente_extrator/__init__.py with package exports
-- [ ] T005 Create agente_extrator/schemas.py with BankReceipt Pydantic model
-- [ ] T006 Create agente_extrator/utils.py with Brazilian format parsers (moeda, data)
+- [X] T004 Create agente_extrator/__init__.py with package exports
+- [X] T005 Create agente_extrator/schemas.py with BankReceipt Pydantic model
+- [X] T006 Create agente_extrator/utils.py with Brazilian format parsers (moeda, data)
 
 ---
 
@@ -36,7 +36,7 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Independent Test**: Fornecer imagem de comprovante PIX e verificar JSON completo com todos os campos
 
-- [ ] T007 [P] [US1] Create agente_extrator/processors/__init__.py
+- [X] T007 [P] [US1] Create agente_extrator/processors/__init__.py
 - [ ] T008 [P] [US1] Create agente_extrator/processors/image_processor.py with ImageProcessor class (Pillow: redimensionar, corrigir orientação, otimizar)
 - [ ] T009 [US1] Create agente_extrator/agent.py with Agno Agent configurado para Groq (llama-3.2-90b-vision-preview) com output_type=BankReceipt
 
@@ -74,7 +74,7 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 **Purpose**: Verificação final e documentação
 
 - [ ] T013 Verify pyproject.toml configuration and install dependencies with `uv sync`
-- [ ] T014 Validate .gitignore includes .env and __pycache__/
+- [X] T014 Validate .gitignore includes .env and __pycache__/
 
 ---
 
