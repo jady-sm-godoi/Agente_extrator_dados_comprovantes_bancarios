@@ -73,7 +73,7 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Purpose**: Verificação final e documentação
 
-- [ ] T013 Verify pyproject.toml configuration and install dependencies with `uv sync`
+- [X] T013 Verify pyproject.toml configuration and install dependencies with `uv sync`
 - [X] T014 Validate .gitignore includes .env and __pycache__/
 
 ---
