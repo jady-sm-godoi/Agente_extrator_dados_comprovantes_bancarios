@@ -50,7 +50,7 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Independent Test**: Fornecer PDF de comprovante TED e verificar JSON completo
 
-- [ ] T010 [US2] Create agente_extrator/processors/pdf_processor.py with PdfProcessor class (pdf2image: converter páginas para imagens PIL)
+- [X] T010 [US2] Create agente_extrator/processors/pdf_processor.py with PdfProcessor class (pdf2image: converter páginas para imagens PIL)
 
 **Checkpoint**: US2 funcional — PDF de comprovante → JSON validado
 
