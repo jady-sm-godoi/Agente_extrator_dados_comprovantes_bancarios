@@ -62,8 +62,8 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 
 **Independent Test**: Chamar `extrair_comprovante(BytesIO(...))` e verificar dict de retorno
 
-- [ ] T011 [P] [US3] Create agente_extrator/integration.py with extrair_comprovante() function (aceita str, Path, BytesIO, UploadedFile)
-- [ ] T012 [P] [US3] Create exemplo_uso.py with CLI argument parsing e demonstração de uso
+- [X] T011 [P] [US3] Create agente_extrator/integration.py with extrair_comprovante() function (aceita str, Path, BytesIO, UploadedFile)
+- [X] T012 [P] [US3] Create exemplo_uso.py with CLI argument parsing e demonstração de uso
 
 **Checkpoint**: US3 funcional — função bridge integrada com Django
 
