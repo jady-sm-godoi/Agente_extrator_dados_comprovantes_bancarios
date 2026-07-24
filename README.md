@@ -1,12 +1,233 @@
-# Agente Extrator de Comprovantes Bancários
+# Receipt Extractor / Extrator de Comprovantes
 
 **v0.1.0** · Python 3.13 · [Agno](https://agno.build) + [Groq](https://groq.com)
 
-Módulo Python para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC). Recebe PDF ou imagem, processa com visão computacional via IA e retorna JSON validado com valor, data, tipo, bancos e favorecido.
+---
+
+## English
+
+### Overview
+
+Python module for automated extraction of Brazilian bank receipt data (PIX, TED, DOC). Accepts PDF or image, processes with vision AI via Groq, and returns validated JSON with amount, date, transaction type, banks and recipient.
+
+### Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Python ≥3.13 |
+| Agent Framework | Agno |
+| Vision Model | Groq (qwen3.6-27b) |
+| PDF → Image | pdf2image + poppler-utils |
+| Image Processing | Pillow |
+| Schemas | Pydantic v2 |
+| Package Manager | uv |
+
+### Data Flow
+
+```
+Input (str | Path | BytesIO | UploadedFile)
+       │
+       ▼
+  _read_file() ───→ raw bytes
+       │
+       ▼
+  _identify_type()
+       │
+       ├── .pdf  → PdfProcessor  → image (300 DPI, 1st page)
+       └── .png/jpg → ImageProcessor → optimized JPEG (max 2048px)
+       │
+       ▼
+  extract_from_image() ───→ Groq Vision (qwen3.6-27b)
+       │
+       ▼
+  BankReceipt (Pydantic validated)
+       │
+       ▼
+  model_dump() ───→ dict (JSON-serializable)
+
+Error → {"erro": "descriptive message"}
+```
+
+### Schema: BankReceipt
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `valor` | Decimal | ✔ | > 0 |
+| `data_transacao` | date | ✔ | ISO YYYY-MM-DD |
+| `numero_controle` | str \| null | ✘ | max 64 chars |
+| `banco_origem` | str \| null | ✘ | max 100 chars |
+| `tipo` | Literal | ✔ | PIX \| TED \| DOC \| DESCONHECIDO |
+| `banco_destino` | str \| null | ✘ | max 100 chars |
+| `favorecido` | str \| null | ✘ | max 200 chars |
+
+#### Sample output
+
+```json
+{
+  "valor": 1500.0,
+  "data_transacao": "2026-07-20",
+  "numero_controle": "E4B3C2A1F5D8",
+  "banco_origem": "Itaú Unibanco S.A.",
+  "tipo": "PIX",
+  "banco_destino": "Nubank",
+  "favorecido": "Maria Oliveira Santos"
+}
+```
+
+### Quickstart
+
+#### Prerequisites
+
+```bash
+# System
+sudo apt install poppler-utils      # Ubuntu/Debian
+brew install poppler                 # macOS
+
+# Python 3.13
+python --version   # ≥ 3.13
+```
+
+#### Installation
+
+```bash
+git clone <repo>
+cd receipt-extractor
+uv sync
+
+# Set up Groq API key
+cp .env.example .env
+# Edit .env with your key: https://console.groq.com/keys
+```
+
+#### CLI Usage
+
+```bash
+python usage_example.py ~/Downloads/receipt.pdf
+```
+
+#### Code Usage
+
+```python
+from bank_receipt_extractor.integration import extract_receipt
+
+# File path
+data = extract_receipt("receipt.pdf")
+
+# Path object
+from pathlib import Path
+data = extract_receipt(Path("receipt.jpg"))
+
+# BytesIO (in-memory upload)
+from io import BytesIO
+with open("receipt.png", "rb") as f:
+    data = extract_receipt(BytesIO(f.read()))
+
+# Django UploadedFile (directly)
+data = extract_receipt(request.FILES["receipt"])
+```
+
+### API: `extract_receipt()`
+
+```python
+def extract_receipt(file: str | Path | BytesIO | UploadedFile) -> dict
+```
+
+| Scenario | Return |
+|----------|--------|
+| Success | `{"valor": float, "data_transacao": str, "tipo": str, ...}` |
+| Invalid file | `{"erro": "Could not process PDF..."}` |
+| Unsupported format | `{"erro": "Unsupported format. Accepted: PDF, PNG, JPG"}` |
+| Groq API error | `{"erro": "Unexpected error: ..."}` |
+
+The function **never raises** — always returns a dict.
+
+### Django Integration
+
+#### Backend View
+
+```python
+from django.http import JsonResponse
+from bank_receipt_extractor.integration import extract_receipt
+
+@require_POST
+def extract_receipt_data(request):
+    file = request.FILES.get("receipt")
+    if not file:
+        return JsonResponse({"erro": "No file uploaded"}, status=400)
+    data = extract_receipt(file)
+    return JsonResponse(data)
+```
+
+#### Frontend (onchange + AJAX)
+
+```javascript
+document.getElementById("id_receipt").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    try {
+        const response = await fetch("/api/extract-receipt/", {
+            method: "POST",
+            body: formData,
+        });
+        const data = await response.json();
+
+        if (data.erro) {
+            alert("Error: " + data.erro);
+        } else {
+            document.getElementById("id_valor").value = data.valor;
+            document.getElementById("id_tipo").value = data.tipo;
+            // Fill hidden fields...
+        }
+    } catch (err) {
+        alert("Error processing receipt");
+    }
+});
+```
+
+> **Note**: Groq API calls take 5–15 seconds. Add loading states on the frontend. For higher scale, consider Celery + Redis for async processing.
+
+### Project Structure
+
+```
+├── bank_receipt_extractor/       # Main package
+│   ├── __init__.py               # Exports: BankReceipt, extract_receipt
+│   ├── schemas.py                # Pydantic BankReceipt model
+│   ├── utils.py                  # BR format parsers: currency, date
+│   ├── agent.py                  # Agno Agent + Groq Vision
+│   ├── processors/
+│   │   ├── __init__.py
+│   │   ├── image_processor.py    # Resize, EXIF correction, JPEG
+│   │   └── pdf_processor.py      # PDF → image (pdf2image)
+│   └── integration.py            # Bridge: extract_receipt()
+│
+├── usage_example.py              # CLI demo
+├── pyproject.toml                # Dependencies & metadata
+├── .env.example                  # Environment template
+└── specs/                        # Feature docs (Specify)
+```
+
+### System Requirements
+
+| Dependency | Required | Purpose |
+|------------|----------|---------|
+| Python ≥ 3.13 | ✔ | Runtime |
+| poppler-utils | ✔ | pdf2image PDF conversion |
+| Internet | ✔ | Groq API |
+| GROQ_API_KEY | ✔ | Groq authentication |
 
 ---
 
-## Stack
+## Português
+
+### Visão Geral
+
+Módulo Python para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC). Recebe PDF ou imagem, processa com IA de visão via Groq e retorna JSON validado com valor, data, tipo, bancos e favorecido.
+
+### Stack
 
 | Camada | Tecnologia |
 |--------|-----------|
@@ -14,13 +235,11 @@ Módulo Python para extração automatizada de dados de comprovantes bancários 
 | Framework de Agentes | Agno |
 | Modelo de Visão | Groq (qwen3.6-27b) |
 | PDF → Imagem | pdf2image + poppler-utils |
-| Imagem | Pillow (PIL Fork) |
+| Processamento de Imagem | Pillow |
 | Schemas | Pydantic v2 |
 | Gerenciamento | uv |
 
----
-
-## Fluxo de Dados
+### Fluxo de Dados
 
 ```
 Entrada (str | Path | BytesIO | UploadedFile)
@@ -46,9 +265,7 @@ Entrada (str | Path | BytesIO | UploadedFile)
 Erro → {"erro": "mensagem descritiva"}
 ```
 
----
-
-## Schema: BankReceipt
+### Schema: BankReceipt
 
 | Campo | Tipo | Obrigatório | Validação |
 |-------|------|-------------|-----------|
@@ -60,7 +277,7 @@ Erro → {"erro": "mensagem descritiva"}
 | `banco_destino` | str \| null | ✘ | max 100 chars |
 | `favorecido` | str \| null | ✘ | max 200 chars |
 
-### Exemplo de saída
+#### Exemplo de saída
 
 ```json
 {
@@ -74,11 +291,9 @@ Erro → {"erro": "mensagem descritiva"}
 }
 ```
 
----
+### Início Rápido
 
-## Quickstart
-
-### Pré-requisitos
+#### Pré-requisitos
 
 ```bash
 # Sistema
@@ -89,11 +304,11 @@ brew install poppler                 # macOS
 python --version   # ≥ 3.13
 ```
 
-### Instalação
+#### Instalação
 
 ```bash
 git clone <repo>
-cd agente_extrator_dados_comprovantes_bancarios
+cd receipt-extractor
 uv sync
 
 # Configurar chave da API Groq
@@ -101,44 +316,38 @@ cp .env.example .env
 # Edite .env com sua chave: https://console.groq.com/keys
 ```
 
-### Uso via CLI
+#### Uso via CLI
 
 ```bash
-python exemplo_uso.py ~/Downloads/comprovante.pdf
+python usage_example.py ~/Downloads/comprovante.pdf
 ```
 
-### Uso via código
+#### Uso via código
 
 ```python
-from agente_extrator.integration import extrair_comprovante
+from bank_receipt_extractor.integration import extract_receipt
 
-# String de caminho
-dados = extrair_comprovante("comprovante.pdf")
+# Caminho do arquivo
+dados = extract_receipt("comprovante.pdf")
 
 # Path object
 from pathlib import Path
-dados = extrair_comprovante(Path("comprovante.jpg"))
+dados = extract_receipt(Path("comprovante.jpg"))
 
 # BytesIO (upload em memória)
 from io import BytesIO
 with open("comprovante.png", "rb") as f:
-    dados = extrair_comprovante(BytesIO(f.read()))
+    dados = extract_receipt(BytesIO(f.read()))
 
 # UploadedFile do Django (diretamente)
-dados = extrair_comprovante(request.FILES["comprovante"])
+dados = extract_receipt(request.FILES["comprovante"])
 ```
 
----
-
-## API: `extrair_comprovante()`
-
-### Assinatura
+### API: `extract_receipt()`
 
 ```python
-def extrair_comprovante(arquivo: str | Path | BytesIO | UploadedFile) -> dict
+def extract_receipt(arquivo: str | Path | BytesIO | UploadedFile) -> dict
 ```
-
-### Retorno
 
 | Situação | Retorno |
 |----------|---------|
@@ -149,30 +358,24 @@ def extrair_comprovante(arquivo: str | Path | BytesIO | UploadedFile) -> dict
 
 A função **nunca levanta exceção** — sempre retorna um dict.
 
----
+### Integração com Django
 
-## Integração com Django
-
-Em formulários com upload de comprovante no `onchange`:
-
-### Backend (view endpoint)
+#### View (endpoint)
 
 ```python
-# views.py
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from agente_extrator.integration import extrair_comprovante
+from bank_receipt_extractor.integration import extract_receipt
 
 @require_POST
 def extrair_dados_comprovante(request):
     arquivo = request.FILES.get("comprovante")
     if not arquivo:
         return JsonResponse({"erro": "Nenhum arquivo enviado"}, status=400)
-    dados = extrair_comprovante(arquivo)
+    dados = extract_receipt(arquivo)
     return JsonResponse(dados)
 ```
 
-### Frontend (onchange + AJAX)
+#### Frontend (onchange + AJAX)
 
 ```javascript
 document.getElementById("id_comprovante").addEventListener("change", async (e) => {
@@ -193,9 +396,8 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
             alert("Erro: " + dados.erro);
         } else {
             document.getElementById("id_valor").value = dados.valor;
-            document.getElementById("id_data_transacao").value = dados.data_transacao;
             document.getElementById("id_tipo").value = dados.tipo;
-            // Preenche os campos ocultos...
+            // Preenche campos ocultos...
         }
     } catch (err) {
         alert("Erro ao processar comprovante");
@@ -203,41 +405,29 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 });
 ```
 
-> **Atenção**: Chamadas à API Groq levam de 5 a 15 segundos. Implemente loading states no frontend e considere async tasks (Celery) para escala maior.
+> **Atenção**: Chamadas à API Groq levam de 5 a 15 segundos. Implemente loading states no frontend. Para escala maior, considere Celery + Redis para processamento assíncrono.
 
----
-
-## Estrutura do Projeto
+### Estrutura do Projeto
 
 ```
-├── agente_extrator/              # Pacote principal
-│   ├── __init__.py               # Exporta: BankReceipt, extrair_comprovante
+├── bank_receipt_extractor/       # Pacote principal
+│   ├── __init__.py               # Exporta: BankReceipt, extract_receipt
 │   ├── schemas.py                # Modelo Pydantic BankReceipt
-│   ├── utils.py                  # Parsers BR: moeda, data, detect_file_type
+│   ├── utils.py                  # Parsers BR: moeda, data
 │   ├── agent.py                  # Agno Agent + Groq Vision
 │   ├── processors/
 │   │   ├── __init__.py
-│   │   ├── image_processor.py    # Redimensionamento, correção EXIF, JPEG
+│   │   ├── image_processor.py    # Redimensionamento, EXIF, JPEG
 │   │   └── pdf_processor.py      # PDF → imagem (pdf2image)
-│   └── integration.py            # Bridge function extrair_comprovante()
+│   └── integration.py            # Bridge: extract_receipt()
 │
-├── exemplo_uso.py                # CLI de demonstração
+├── usage_example.py              # CLI de demonstração
 ├── pyproject.toml                # Dependências e metadados
 ├── .env.example                  # Template de variáveis de ambiente
-├── specs/                        # Documentação da feature (Specify)
-│   └── 001-extrator-comprovantes/
-│       ├── spec.md               # Especificação funcional
-│       ├── plan.md               # Plano de implementação
-│       ├── research.md           # Decisões técnicas
-│       ├── data-model.md         # Modelo de dados
-│       ├── quickstart.md         # Guia rápido
-│       └── tasks.md              # Lista de tarefas
-└── .specify/memory/constitution.md  # Princípios do projeto
+└── specs/                        # Documentação da feature
 ```
 
----
-
-## Pré-requisitos de Sistema
+### Pré-requisitos de Sistema
 
 | Dependência | Obrigatório | Para quê |
 |-------------|-------------|----------|
@@ -246,22 +436,20 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 | Internet | ✔ | API Groq |
 | GROQ_API_KEY | ✔ | Autenticação Groq |
 
----
-
-## Desenvolvimento
+### Desenvolvimento
 
 ```bash
 # Quality gates
 ruff check .          # Lint
-mypy agente_extrator  # Type check (em breve)
+mypy bank_receipt_extractor  # Type check
 
-# Testes
-pytest -v             # (em breve)
+# Tests (coming soon)
+pytest -v
 ```
 
-### Princípios
+### Princípios / Principles
 
-- **Modularidade**: Pacote independente, bridge para Django
-- **Segurança**: API key via `.env`, sem secrets no repositório
-- **Tipagem**: Schemas Pydantic validados na entrada e saída
-- **Simplicidade**: Apenas os campos solicitados, YAGNI
+- **Modularity**: Independent package, Django bridge via `extract_receipt()`
+- **Security**: API key via `.env`, no secrets committed
+- **Strong Typing**: Pydantic schemas for input/output validation
+- **Simplicity**: YAGNI — only the requested fields, no extra abstractions

@@ -1,16 +1,13 @@
-# Interface Contract: `extrair_comprovante()`
+# Interface Contract: `extract_receipt()`
 
-## Contrato da Função Bridge (Django)
+## Função Bridge para Django
 
 ```python
-def extrair_comprovante(arquivo: ComprovanteInput) -> dict:
+def extract_receipt(arquivo: ReceiptInput) -> dict:
     ...
 ```
 
 ### Input
-
-| Parâmetro | Tipo | Descrição |
-|-----------|------|-----------|
 | `arquivo` | `str \| Path \| BytesIO \| django.core.files.uploadedfile.UploadedFile` | Arquivo do comprovante (PDF ou imagem) |
 
 ### Output (sucesso)
@@ -49,13 +46,13 @@ def extrair_comprovante(arquivo: ComprovanteInput) -> dict:
 ### Exemplo de Uso no Django
 
 ```python
-from agente_extrator.integration import extrair_comprovante
+from bank_receipt_extractor.integration import extract_receipt
 
 def inscricao_view(request):
     if request.method == "POST":
         comprovante = request.FILES.get("comprovante")
         if comprovante:
-            dados = extrair_comprovante(comprovante)
+            dados = extract_receipt(comprovante)
             if "erro" in dados:
                 messages.error(request, dados["erro"])
             else:

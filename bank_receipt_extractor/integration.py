@@ -1,13 +1,13 @@
 from io import BytesIO
 from pathlib import Path
 
-from agente_extrator.agent import extract_from_image
-from agente_extrator.processors.image_processor import ImageProcessor
-from agente_extrator.processors.pdf_processor import PdfProcessor
-from agente_extrator.utils import detect_file_type, format_error
+from bank_receipt_extractor.agent import extract_from_image
+from bank_receipt_extractor.processors.image_processor import ImageProcessor
+from bank_receipt_extractor.processors.pdf_processor import PdfProcessor
+from bank_receipt_extractor.utils import detect_file_type, format_error
 
 
-def extrair_comprovante(arquivo) -> dict:
+def extract_receipt(arquivo) -> dict:
     try:
         raw_bytes = _read_file(arquivo)
         file_type = _identify_type(arquivo, raw_bytes)

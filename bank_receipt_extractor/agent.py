@@ -2,7 +2,7 @@ from agno.agent import Agent
 from agno.media import Image as AgnoImage
 from agno.models.groq import Groq
 
-from agente_extrator.schemas import BankReceipt
+from bank_receipt_extractor.schemas import BankReceipt
 
 SYSTEM_PROMPT = """Você é um especialista em extração de dados de comprovantes bancários brasileiros.
 

@@ -2,7 +2,7 @@ from io import BytesIO
 
 from pdf2image import convert_from_bytes
 
-from agente_extrator.processors.image_processor import ImageProcessor
+from bank_receipt_extractor.processors.image_processor import ImageProcessor
 
 
 class PdfProcessor:
