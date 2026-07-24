@@ -1,5 +1,3 @@
-import os
-
 from agno.agent import Agent
 from agno.media import Image as AgnoImage
 from agno.models.groq import Groq
@@ -32,12 +30,8 @@ def get_agent() -> Agent:
     global _agent
     if _agent is None:
         _agent = Agent(
-            model=Groq(
-                id="llama-3.2-90b-vision-preview",
-                api_key=os.getenv("GROQ_API_KEY"),
-            ),
+            model=Groq(id="qwen/qwen3.6-27b"),
             description=SYSTEM_PROMPT,
-            response_model=BankReceipt,
             markdown=True,
         )
     return _agent
@@ -48,7 +42,12 @@ def extract_from_image(image_bytes: bytes) -> BankReceipt:
     response = agent.run(
         "Extraia os dados deste comprovante bancário.",
         images=[AgnoImage(content=image_bytes)],
+        output_schema=BankReceipt,
     )
     if response and response.content:
-        return response.content
+        if isinstance(response.content, BankReceipt):
+            return response.content
+        if isinstance(response.content, dict):
+            return BankReceipt(**response.content)
+        raise ValueError(f"Resposta inesperada do agente: {type(response.content)}")
     raise ValueError("Agente não retornou dados válidos.")

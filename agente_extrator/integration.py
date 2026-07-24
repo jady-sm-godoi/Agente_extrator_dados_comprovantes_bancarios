@@ -20,7 +20,10 @@ def extrair_comprovante(arquivo) -> dict:
                 "Formato não suportado. Aceito: PDF, PNG, JPG"
             )
         receipt = extract_from_image(image_bytes)
-        return receipt.model_dump()
+        data = receipt.model_dump()
+        data["valor"] = float(data["valor"])
+        data["data_transacao"] = str(data["data_transacao"])
+        return data
     except ValueError as e:
         return format_error(str(e))
     except Exception as e:
