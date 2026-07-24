@@ -37,8 +37,8 @@ description: "Task list for feature: Módulo Extrator de Comprovantes Bancários
 **Independent Test**: Fornecer imagem de comprovante PIX e verificar JSON completo com todos os campos
 
 - [X] T007 [P] [US1] Create agente_extrator/processors/__init__.py
-- [ ] T008 [P] [US1] Create agente_extrator/processors/image_processor.py with ImageProcessor class (Pillow: redimensionar, corrigir orientação, otimizar)
-- [ ] T009 [US1] Create agente_extrator/agent.py with Agno Agent configurado para Groq (llama-3.2-90b-vision-preview) com output_type=BankReceipt
+- [X] T008 [P] [US1] Create agente_extrator/processors/image_processor.py with ImageProcessor class (Pillow: redimensionar, corrigir orientação, otimizar)
+- [X] T009 [US1] Create agente_extrator/agent.py with Agno Agent configurado para Groq (llama-3.2-90b-vision-preview) com output_type=BankReceipt
 
 **Checkpoint**: US1 funcional — imagem de comprovante → JSON validado
 
