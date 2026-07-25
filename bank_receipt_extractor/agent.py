@@ -1,3 +1,5 @@
+import os
+
 from agno.agent import Agent
 from agno.media import Image as AgnoImage
 from agno.models.groq import Groq
@@ -28,9 +30,11 @@ _agent: Agent | None = None
 
 def get_agent() -> Agent:
     global _agent
-    if _agent is None:
+    model_id = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
+    api_key = os.getenv("GROQ_API_KEY")
+    if _agent is None or _agent.model.id != model_id:
         _agent = Agent(
-            model=Groq(id="qwen/qwen3.6-27b"),
+            model=Groq(id=model_id, api_key=api_key),
             description=SYSTEM_PROMPT,
             markdown=True,
         )

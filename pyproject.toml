@@ -1,14 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "receipt-extractor"
-version = "0.1.0"
+name = "bank-receipt-extractor"
+dynamic = ["version"]
 description = "Automated Brazilian bank receipt data extraction (PIX, TED, DOC) using Agno and Groq"
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.13"
-dependencies = [
-    "agno>=0.5.0",
-    "groq>=0.3.0",
-    "pdf2image>=1.17.0",
-    "Pillow>=10.0.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
+authors = [
+  { name = "Jady", email = "jady@example.com" },
 ]
+classifiers = [
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Artificial Intelligence",
+  "Intended Audience :: Developers",
+]
+dependencies = [
+  "agno>=0.5.0",
+  "groq>=0.3.0",
+  "pdf2image>=1.17.0",
+  "Pillow>=10.0.0",
+  "pydantic>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/anomalyco/receipt-extractor"
+Repository = "https://github.com/anomalyco/receipt-extractor"
+Issues = "https://github.com/anomalyco/receipt-extractor/issues"
+
+[tool.hatch.version]
+path = "bank_receipt_extractor/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bank_receipt_extractor"]

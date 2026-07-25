@@ -4,6 +4,67 @@
 
 ---
 
+## Installation
+
+```bash
+pip install bank-receipt-extractor
+# or with uv
+uv pip install bank-receipt-extractor
+```
+
+## Configuration
+
+Set these environment variables:
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `GROQ_API_KEY` | ✅ Yes | Groq API key (get one at [console.groq.com](https://console.groq.com/keys)) | — |
+| `GROQ_MODEL` | ❌ No | Groq vision model ID | `qwen/qwen3.6-27b` |
+
+```bash
+export GROQ_API_KEY=gsk_your_key_here
+export GROQ_MODEL=qwen/qwen3.6-27b
+```
+
+Or with a `.env` file (your app loads it via `python-dotenv`):
+
+```
+GROQ_API_KEY=gsk_your_key_here
+GROQ_MODEL=qwen/qwen3.6-27b
+```
+
+### Recommended Models
+
+| Model | Speed | Quality | Cost |
+|-------|-------|---------|------|
+| `qwen/qwen3.6-27b` | ⚡ Fast | ✅ Good | $0.60/1M tokens |
+| `llama-3.2-90b-vision-preview` | ⚡ Fast | ✅ Excellent | $0.90/1M tokens |
+| `llama-3.2-11b-vision-preview` | ⚡ Very fast | ✅ OK | $0.18/1M tokens |
+
+All listed models are available on Groq's free tier for prototyping.
+
+## System Dependency: poppler-utils
+
+To process **PDF files**, `pdf2image` requires the `pdftoppm` command from `poppler-utils`:
+
+```bash
+# Ubuntu/Debian
+sudo apt install poppler-utils
+
+# macOS
+brew install poppler
+
+# Fedora
+sudo dnf install poppler-utils
+
+# Docker
+RUN apt-get update && apt-get install -y poppler-utils
+```
+
+If you process **only images** (PNG/JPG), poppler-utils is **not needed**.
+
+---
+
 ## English
 
 ### Overview
@@ -215,13 +276,74 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 | Dependency | Required | Purpose |
 |------------|----------|---------|
 | Python ≥ 3.13 | ✔ | Runtime |
-| poppler-utils | ✔ | pdf2image PDF conversion |
+| poppler-utils | ✔ (PDF only) | pdf2image — converts PDF pages to images via `pdftoppm` |
 | Internet | ✔ | Groq API |
 | GROQ_API_KEY | ✔ | Groq authentication |
 
 ---
 
 ## Português
+
+### Instalação
+
+```bash
+pip install bank-receipt-extractor
+# ou com uv
+uv pip install bank-receipt-extractor
+```
+
+### Configuração
+
+Defina estas variáveis de ambiente:
+
+| Variável | Obrigatória | Descrição | Padrão |
+|----------|-------------|-----------|--------|
+| `GROQ_API_KEY` | ✅ Sim | Chave da API Groq (obtenha em [console.groq.com](https://console.groq.com/keys)) | — |
+| `GROQ_MODEL` | ❌ Não | Modelo de visão Groq | `qwen/qwen3.6-27b` |
+
+```bash
+export GROQ_API_KEY=gsk_sua_chave_aqui
+export GROQ_MODEL=qwen/qwen3.6-27b
+```
+
+Ou com arquivo `.env` (seu app carrega via `python-dotenv`):
+
+```
+GROQ_API_KEY=gsk_sua_chave_aqui
+GROQ_MODEL=qwen/qwen3.6-27b
+```
+
+### Modelos Recomendados
+
+| Modelo | Velocidade | Qualidade | Custo |
+|--------|------------|-----------|-------|
+| `qwen/qwen3.6-27b` | ⚡ Rápido | ✅ Boa | $0,60/1M tokens |
+| `llama-3.2-90b-vision-preview` | ⚡ Rápido | ✅ Excelente | $0,90/1M tokens |
+| `llama-3.2-11b-vision-preview` | ⚡ Muito rápido | ✅ OK | $0,18/1M tokens |
+
+Todos os modelos listados estão disponíveis no nível gratuito da Groq para prototipação.
+
+### Dependência de Sistema: poppler-utils
+
+Para processar **arquivos PDF**, o `pdf2image` precisa do comando `pdftoppm` do pacote `poppler-utils`:
+
+```bash
+# Ubuntu/Debian
+sudo apt install poppler-utils
+
+# macOS
+brew install poppler
+
+# Fedora
+sudo dnf install poppler-utils
+
+# Docker
+RUN apt-get update && apt-get install -y poppler-utils
+```
+
+Se você processa **apenas imagens** (PNG/JPG), o `poppler-utils` **não é necessário**.
+
+---
 
 ### Visão Geral
 
@@ -432,7 +554,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 | Dependência | Obrigatório | Para quê |
 |-------------|-------------|----------|
 | Python ≥ 3.13 | ✔ | Runtime |
-| poppler-utils | ✔ | pdf2image converter PDF |
+| poppler-utils | ✔ (só PDF) | pdf2image — converte páginas PDF em imagem via `pdftoppm` |
 | Internet | ✔ | API Groq |
 | GROQ_API_KEY | ✔ | Autenticação Groq |
 
