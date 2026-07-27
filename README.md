@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.1.0** · Python 3.13 · [Agno](https://agno.build) + [Groq](https://groq.com)
+**v0.1.1** · Python 3.13 · [Agno](https://agno.build) + [Groq](https://groq.com)
 
 ---
 
@@ -198,6 +198,7 @@ def extract_receipt(file: str | Path | BytesIO | UploadedFile) -> dict
 | Success | `{"valor": float, "data_transacao": str, "tipo": str, ...}` |
 | Invalid file | `{"erro": "Could not process PDF..."}` |
 | Unsupported format | `{"erro": "Unsupported format. Accepted: PDF, PNG, JPG"}` |
+| File too large (>50MB) | `{"erro": "File exceeds the 50MB limit"}` |
 | Groq API error | `{"erro": "Unexpected error: ..."}` |
 
 The function **never raises** — always returns a dict.
@@ -257,13 +258,23 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 ├── bank_receipt_extractor/       # Main package
 │   ├── __init__.py               # Exports: BankReceipt, extract_receipt
 │   ├── schemas.py                # Pydantic BankReceipt model
-│   ├── utils.py                  # BR format parsers: currency, date
-│   ├── agent.py                  # Agno Agent + Groq Vision
+│   ├── utils.py                  # Parsers: currency, date, MIME detection
+│   ├── agent.py                  # Agno Agent + Groq Vision (30s timeout)
 │   ├── processors/
 │   │   ├── __init__.py
 │   │   ├── image_processor.py    # Resize, EXIF correction, JPEG
 │   │   └── pdf_processor.py      # PDF → image (pdf2image)
-│   └── integration.py            # Bridge: extract_receipt()
+│   └── integration.py            # Bridge: extract_receipt() (50MB limit, logging)
+│
+├── tests/                        # Test suite (101 tests, 100% coverage)
+│   ├── test_schemas.py
+│   ├── test_utils.py
+│   ├── test_agent.py
+│   ├── test_image_processor.py
+│   ├── test_pdf_processor.py
+│   ├── test_integration.py
+│   ├── test_integration_unit.py
+│   └── conftest.py               # Shared fixtures & mocks
 │
 ├── usage_example.py              # CLI demo
 ├── pyproject.toml                # Dependencies & metadata
@@ -476,6 +487,7 @@ def extract_receipt(arquivo: str | Path | BytesIO | UploadedFile) -> dict
 | Sucesso | `{"valor": float, "data_transacao": str, "tipo": str, ...}` |
 | Arquivo inválido | `{"erro": "Não foi possível processar o PDF..."}` |
 | Formato não suportado | `{"erro": "Formato não suportado. Aceito: PDF, PNG, JPG"}` |
+| Arquivo muito grande (>50MB) | `{"erro": "Arquivo excede o limite de 50MB"}` |
 | API Groq indisponível | `{"erro": "Erro inesperado: ..."}` |
 
 A função **nunca levanta exceção** — sempre retorna um dict.
@@ -535,13 +547,23 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 ├── bank_receipt_extractor/       # Pacote principal
 │   ├── __init__.py               # Exporta: BankReceipt, extract_receipt
 │   ├── schemas.py                # Modelo Pydantic BankReceipt
-│   ├── utils.py                  # Parsers BR: moeda, data
-│   ├── agent.py                  # Agno Agent + Groq Vision
+│   ├── utils.py                  # Parsers: moeda, data, detecção MIME
+│   ├── agent.py                  # Agno Agent + Groq Vision (timeout 30s)
 │   ├── processors/
 │   │   ├── __init__.py
 │   │   ├── image_processor.py    # Redimensionamento, EXIF, JPEG
 │   │   └── pdf_processor.py      # PDF → imagem (pdf2image)
-│   └── integration.py            # Bridge: extract_receipt()
+│   └── integration.py            # Bridge: extract_receipt() (limite 50MB, logging)
+│
+├── tests/                        # Suite de testes (101 testes, 100% cobertura)
+│   ├── test_schemas.py
+│   ├── test_utils.py
+│   ├── test_agent.py
+│   ├── test_image_processor.py
+│   ├── test_pdf_processor.py
+│   ├── test_integration.py
+│   ├── test_integration_unit.py
+│   └── conftest.py               # Fixtures e mocks compartilhados
 │
 ├── usage_example.py              # CLI de demonstração
 ├── pyproject.toml                # Dependências e metadados
@@ -562,16 +584,17 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 
 ```bash
 # Quality gates
-ruff check .          # Lint
-mypy bank_receipt_extractor  # Type check
+ruff check bank_receipt_extractor tests   # Lint
+mypy bank_receipt_extractor tests         # Type check
 
-# Tests (coming soon)
-pytest -v
+# Tests (101 testes, 100% cobertura)
+pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 ```
 
 ### Princípios / Principles
 
 - **Modularity**: Independent package, Django bridge via `extract_receipt()`
-- **Security**: API key via `.env`, no secrets committed
+- **Security**: API key via `.env` (gitignored), file size limit (50MB), Groq timeout (30s), MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
 - **Strong Typing**: Pydantic schemas for input/output validation
+- **Testability**: 101 tests with 100% code coverage, mocked Groq API
 - **Simplicity**: YAGNI — only the requested fields, no extra abstractions
