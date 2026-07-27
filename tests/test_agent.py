@@ -24,6 +24,19 @@ def test_get_agent_respects_env_model(monkeypatch):
     assert "llama-3.2-90b-vision-preview" in agent.model.id
 
 
+def test_get_agent_sets_timeout(monkeypatch):
+    import bank_receipt_extractor.agent as agent_mod
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ_MODEL", "__test_timeout_model__")
+    agent_mod._agent = None
+    try:
+        agent = agent_mod.get_agent()
+        assert agent.model.timeout == 30
+    finally:
+        agent_mod._agent = None
+
+
 def test_extract_from_image_success(sample_bank_receipt):
     mock_agent = MagicMock()
     mock_agent.run.return_value.content = sample_bank_receipt

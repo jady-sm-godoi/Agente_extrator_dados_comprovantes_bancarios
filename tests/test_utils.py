@@ -5,6 +5,7 @@ import pytest
 
 from bank_receipt_extractor.utils import (
     detect_file_type,
+    detect_mime_type,
     format_error,
     parse_brazilian_date,
     parse_brazilian_decimal,
@@ -102,6 +103,23 @@ class TestDetectFileType:
 
     def test_jfif(self):
         assert detect_file_type("image.jfif") == "image"
+
+
+class TestDetectMimeType:
+    def test_pdf_magic(self):
+        assert detect_mime_type(b"%PDF-1.4") == "pdf"
+
+    def test_jpeg_magic(self):
+        assert detect_mime_type(b"\xff\xd8\xff\xe0") == "image"
+
+    def test_png_magic(self):
+        assert detect_mime_type(b"\x89PNG\r\n\x1a\n") == "image"
+
+    def test_unknown_magic(self):
+        assert detect_mime_type(b"random data") == "unknown"
+
+    def test_empty_bytes(self):
+        assert detect_mime_type(b"") == "unknown"
 
 
 class TestFormatError:

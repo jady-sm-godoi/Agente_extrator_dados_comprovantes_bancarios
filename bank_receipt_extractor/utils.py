@@ -40,5 +40,20 @@ def detect_file_type(filename: str) -> str:
     return "unknown"
 
 
+_MAGIC_PDF = b"%PDF"
+_MAGIC_JPEG = b"\xff\xd8\xff"
+_MAGIC_PNG = b"\x89PNG\r\n\x1a\n"
+
+
+def detect_mime_type(raw_bytes: bytes) -> str:
+    if raw_bytes[:4] == _MAGIC_PDF:
+        return "pdf"
+    if raw_bytes[:3] == _MAGIC_JPEG:
+        return "image"
+    if raw_bytes[:8] == _MAGIC_PNG:
+        return "image"
+    return "unknown"
+
+
 def format_error(message: str) -> dict:
     return {"erro": message}

@@ -34,7 +34,7 @@ def get_agent() -> Agent:
     api_key = os.getenv("GROQ_API_KEY")
     if _agent is None or _agent.model.id != model_id:  # type: ignore[union-attr]
         _agent = Agent(
-            model=Groq(id=model_id, api_key=api_key),
+            model=Groq(id=model_id, api_key=api_key, timeout=30),
             description=SYSTEM_PROMPT,
             markdown=True,
         )

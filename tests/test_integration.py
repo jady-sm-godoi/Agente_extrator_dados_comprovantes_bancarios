@@ -78,6 +78,59 @@ def test_extract_receipt_agent_error(valid_jpeg_bytes):
         assert "Falha simulada" in result["erro"]
 
 
+def test_extract_receipt_file_too_large_bytesio(monkeypatch):
+    from bank_receipt_extractor import integration
+
+    monkeypatch.setattr(integration, "MAX_FILE_SIZE", 10)
+    buf = BytesIO(b"x" * 20)
+    buf.name = "test.jpg"
+    result = extract_receipt(buf)
+    assert "erro" in result
+    assert "excede o limite" in result["erro"]
+
+
+def test_extract_receipt_file_too_large_str(monkeypatch):
+    from bank_receipt_extractor import integration
+
+    monkeypatch.setattr(integration, "MAX_FILE_SIZE", 10)
+    with patch("bank_receipt_extractor.integration.Path") as mock_path:
+        mock_path.return_value.stat.return_value.st_size = 20
+        result = extract_receipt("/fake/path.jpg")
+    assert "erro" in result
+    assert "excede o limite" in result["erro"]
+
+
+def test_extract_receipt_file_too_large_path(monkeypatch):
+    from pathlib import Path as RealPath
+
+    from bank_receipt_extractor import integration
+
+    monkeypatch.setattr(integration, "MAX_FILE_SIZE", 10)
+    original_stat = RealPath.stat
+
+    def mock_stat(self):
+        return type("Stat", (), {"st_size": 20})()
+
+    monkeypatch.setattr(RealPath, "stat", mock_stat)
+    try:
+        result = extract_receipt(RealPath("/fake/path.jpg"))
+        assert "erro" in result
+        assert "excede o limite" in result["erro"]
+    finally:
+        monkeypatch.setattr(RealPath, "stat", original_stat)
+
+
+def test_extract_receipt_logs_error(caplog, valid_jpeg_bytes):
+    caplog.set_level("WARNING")
+    with patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract:
+        mock_extract.side_effect = ValueError("Falha simulada")
+        buf = BytesIO(valid_jpeg_bytes)
+        buf.name = "test.jpg"
+        extract_receipt(buf)
+    assert len(caplog.records) >= 1
+    assert "Falha na extração" in caplog.text
+
+
 def test_extract_receipt_unsupported_file_type():
     result = extract_receipt(42)
     assert "erro" in result

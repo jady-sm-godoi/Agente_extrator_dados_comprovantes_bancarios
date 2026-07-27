@@ -21,7 +21,15 @@ def test_identify_type_pdf_by_magic_bytes():
 
 
 def test_identify_type_image_fallback():
-    assert _identify_type("unknown.txt", b"random data") == "image"
+    assert _identify_type("unknown.txt", b"random data") == "unknown"
+
+
+def test_identify_type_jpeg_magic():
+    assert _identify_type("unknown.txt", b"\xff\xd8\xff\xe0") == "image"
+
+
+def test_identify_type_png_magic():
+    assert _identify_type("unknown.txt", b"\x89PNG\r\n\x1a\n") == "image"
 
 
 def test_identify_type_bytesio_with_name():
@@ -30,9 +38,14 @@ def test_identify_type_bytesio_with_name():
     assert _identify_type(buf, b"data") == "pdf"
 
 
-def test_identify_type_bytesio_without_name_fallback_image():
+def test_identify_type_bytesio_without_name_fallback():
     buf = BytesIO(b"data")
-    assert _identify_type(buf, b"data") == "image"
+    assert _identify_type(buf, b"data") == "unknown"
+
+
+def test_identify_type_bytesio_without_name_jpeg_magic():
+    buf = BytesIO(b"\xff\xd8\xff\xe0")
+    assert _identify_type(buf, b"\xff\xd8\xff\xe0") == "image"
 
 
 def test_identify_type_bytesio_without_name_pdf_magic():
