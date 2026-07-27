@@ -18,7 +18,7 @@ class PdfProcessor:
                 first_page=1,
                 last_page=PdfProcessor.MAX_PAGES,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             raise ValueError(
                 f"Não foi possível processar o PDF. "
                 f"Verifique se o arquivo é válido e não está protegido por senha. "

@@ -25,7 +25,20 @@ dependencies = [
   "pdf2image>=1.17.0",
   "Pillow>=10.0.0",
   "pydantic>=2.0.0",
+  "python-dotenv>=1.0.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5", "mypy>=1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["bank_receipt_extractor"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:"]
 
 [project.urls]
 Homepage = "https://github.com/anomalyco/receipt-extractor"

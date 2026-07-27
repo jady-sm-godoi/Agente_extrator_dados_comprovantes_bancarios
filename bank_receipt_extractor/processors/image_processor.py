@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps  # type: ignore[attr-defined]
 
 
 class ImageProcessor:
@@ -9,12 +9,14 @@ class ImageProcessor:
 
     @staticmethod
     def process(image_bytes: bytes) -> bytes:
-        image = Image.open(BytesIO(image_bytes))
-        image = ImageOps.exif_transpose(image) or image
+        image: Image.Image = Image.open(BytesIO(image_bytes))
+        transposed = ImageOps.exif_transpose(image)
+        if transposed is not None:
+            image = transposed
         if max(image.size) > ImageProcessor.MAX_DIMENSION:
             image.thumbnail(
                 (ImageProcessor.MAX_DIMENSION, ImageProcessor.MAX_DIMENSION),
-                Image.LANCZOS,
+                Image.LANCZOS,  # type: ignore[attr-defined]
             )
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")

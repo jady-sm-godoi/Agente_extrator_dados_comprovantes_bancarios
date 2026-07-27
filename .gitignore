@@ -12,3 +12,4 @@ wheels/
 
 # Environment variables (API keys)
 .env
+.coverage

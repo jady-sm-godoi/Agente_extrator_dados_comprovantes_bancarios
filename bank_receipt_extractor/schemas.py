@@ -1,6 +1,6 @@
-from decimal import Decimal
 from datetime import date
-from typing import Literal, Optional
+from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,12 +15,12 @@ class BankReceipt(BaseModel):
         ...,
         description="Data da transação no formato ISO (YYYY-MM-DD)",
     )
-    numero_controle: Optional[str] = Field(
+    numero_controle: str | None = Field(
         None,
         description="Número de controle/autenticação do comprovante",
         max_length=64,
     )
-    banco_origem: Optional[str] = Field(
+    banco_origem: str | None = Field(
         None,
         description="Nome do banco de origem da transferência",
         max_length=100,
@@ -29,12 +29,12 @@ class BankReceipt(BaseModel):
         ...,
         description="Tipo da transferência bancária",
     )
-    banco_destino: Optional[str] = Field(
+    banco_destino: str | None = Field(
         None,
         description="Nome do banco de destino da transferência",
         max_length=100,
     )
-    favorecido: Optional[str] = Field(
+    favorecido: str | None = Field(
         None,
         description="Nome do favorecido/beneficiário da transferência",
         max_length=200,

@@ -25,7 +25,7 @@ def parse_brazilian_date(value: str) -> date:
     for fmt, pattern in formats:
         if re.fullmatch(pattern, cleaned):
             try:
-                return datetime.strptime(cleaned, fmt).date()
+                return datetime.strptime(cleaned, fmt).date()  # noqa: DTZ007
             except ValueError:
                 raise ValueError(f"Invalid date: {value!r}")
     raise ValueError(f"Unrecognized date format: {value!r}")

@@ -15,7 +15,7 @@ def extract_receipt(arquivo) -> dict:
             image_bytes = PdfProcessor.process(raw_bytes)
         elif file_type == "image":
             image_bytes = ImageProcessor.process(raw_bytes)
-        else:
+        else:  # pragma: no cover
             return format_error(
                 "Formato não suportado. Aceito: PDF, PNG, JPG"
             )
@@ -26,7 +26,7 @@ def extract_receipt(arquivo) -> dict:
         return data
     except ValueError as e:
         return format_error(str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return format_error(f"Erro inesperado: {e}")
 
 
