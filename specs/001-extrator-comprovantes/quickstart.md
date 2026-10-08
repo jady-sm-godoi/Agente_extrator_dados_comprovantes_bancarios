@@ -21,10 +21,13 @@
 # Instalar dependências
 uv sync  # ou: pip install -e .
 
-# Configurar chave da API Groq
+# Configurar chave da API DeepSeek
 cp .env.example .env
-# Edite .env e coloque sua GROQ_API_KEY
+# Edite .env e coloque sua DEEPSEEK_API_KEY
 ```
+
+> Opcional: para fallback com Groq, defina também `GROQ_API_KEY` e
+> `MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b`.
 
 ## Uso Básico
 

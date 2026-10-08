@@ -16,7 +16,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 logger = logging.getLogger(__name__)
 
 
-def extract_receipt(arquivo) -> dict:
+def extract_receipt(arquivo, force_retry: bool = False) -> dict:
     raw_bytes = None
     image_bytes = None
     receipt = None
@@ -37,7 +37,7 @@ def extract_receipt(arquivo) -> dict:
             return format_error(
                 "Formato não suportado. Aceito: PDF, PNG, JPG"
             )
-        receipt = extract_from_image(image_bytes)
+        receipt = extract_from_image(image_bytes, force_retry=force_retry)
         data = receipt.model_dump()
         data["valor"] = float(data["valor"])
         data["data_transacao"] = str(data["data_transacao"])

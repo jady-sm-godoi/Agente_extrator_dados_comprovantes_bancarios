@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.1.1** · Python ≥3.12 · [Agno](https://agno.build) + [Groq](https://groq.com)
+**v0.1.1** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
 
 ---
 
@@ -18,30 +18,30 @@ Set these environment variables:
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
-| `GROQ_API_KEY` | ✅ Yes | Groq API key (get one at [console.groq.com](https://console.groq.com/keys)) | — |
-| `GROQ_MODEL` | ❌ No | Groq vision model ID | `qwen/qwen3.8-27b` |
+| `DEEPSEEK_API_KEY` | ✅ Yes | DeepSeek API key (get one at [platform.deepseek.com](https://platform.deepseek.com/api_keys)) | — |
+| `MODEL_FALLBACK_LIST` | ❌ No | Ordered `provider:model` fallback list, comma-separated. Supported providers: `deepseek`, `groq` | `deepseek:deepseek-flash` |
+| `GROQ_API_KEY` | ❌ No | Groq API key — needed only if Groq is in the fallback list (get one at [console.groq.com](https://console.groq.com/keys)) | — |
 
 ```bash
-export GROQ_API_KEY=gsk_your_key_here
-export GROQ_MODEL=qwen/qwen3.8-27b
+export DEEPSEEK_API_KEY=sk_your_key_here
+export MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b
 ```
 
 Or with a `.env` file (your app loads it via `python-dotenv`):
 
 ```
-GROQ_API_KEY=gsk_your_key_here
-GROQ_MODEL=qwen/qwen3.8-27b
+DEEPSEEK_API_KEY=sk_your_key_here
+MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b
 ```
 
-### Recommended Models
+### Model Fallback
 
-| Model | Speed | Quality | Cost |
-|-------|-------|---------|------|
-| `qwen/qwen3.8-27b` | ⚡ Fast | ✅ Good | $0.60/1M tokens |
-| `llama-3.2-90b-vision-preview` | ⚡ Fast | ✅ Excellent | $0.90/1M tokens |
-| `llama-3.2-11b-vision-preview` | ⚡ Very fast | ✅ OK | $0.18/1M tokens |
+The extractor tries the models in `MODEL_FALLBACK_LIST` in order and caches the first one that succeeds. If it later fails, it falls through to the next. Call `extract_receipt(arquivo, force_retry=True)` to skip the cache and restart from the list.
 
-All listed models are available on Groq's free tier for prototyping.
+| Model | Provider | Vision | Cost (input/1M tok) |
+|-------|----------|--------|----------------------|
+| `deepseek-flash` | DeepSeek | ✅ | $0.15 |
+| `qwen/qwen3.8-27b` | Groq | ✅ | $0.80 |
 
 ## System Dependency: poppler-utils
 
@@ -69,7 +69,7 @@ If you process **only images** (PNG/JPG), poppler-utils is **not needed**.
 
 ### Overview
 
-Python module for automated extraction of Brazilian bank receipt data (PIX, TED, DOC). Accepts PDF or image, processes with vision AI via Groq, and returns validated JSON with amount, date, transaction type, banks and recipient.
+Python module for automated extraction of Brazilian bank receipt data (PIX, TED, DOC). Accepts PDF or image, processes with vision AI via DeepSeek (with Groq fallback), and returns validated JSON with amount, date, transaction type, banks and recipient.
 
 ### Stack
 
@@ -77,7 +77,7 @@ Python module for automated extraction of Brazilian bank receipt data (PIX, TED,
 |-------|-----------|
 | Runtime | Python ≥3.12 |
 | Agent Framework | Agno |
-| Vision Model | Groq (qwen3.8-27b) |
+| Vision Model | DeepSeek (deepseek-flash), Groq fallback |
 | PDF → Image | pdf2image + poppler-utils |
 | Image Processing | Pillow |
 | Schemas | Pydantic v2 |
@@ -98,7 +98,7 @@ Input (str | Path | BytesIO | UploadedFile)
        └── .png/jpg → ImageProcessor → optimized JPEG (max 2048px)
        │
        ▼
-  extract_from_image() ───→ Groq Vision (qwen3.6-27b)
+  extract_from_image() ───→ DeepSeek Vision (deepseek-flash)
        │
        ▼
   BankReceipt (Pydantic validated)
@@ -155,9 +155,9 @@ git clone <repo>
 cd receipt-extractor
 uv sync
 
-# Set up Groq API key
+# Set up DeepSeek API key
 cp .env.example .env
-# Edit .env with your key: https://console.groq.com/keys
+# Edit .env with your key: https://platform.deepseek.com/api_keys
 ```
 
 #### CLI Usage
@@ -199,7 +199,7 @@ def extract_receipt(file: str | Path | BytesIO | UploadedFile) -> dict
 | Invalid file | `{"erro": "Could not process PDF..."}` |
 | Unsupported format | `{"erro": "Unsupported format. Accepted: PDF, PNG, JPG"}` |
 | File too large (>50MB) | `{"erro": "File exceeds the 50MB limit"}` |
-| Groq API error | `{"erro": "Unexpected error: ..."}` |
+| All vision models fail | `{"erro": "Unexpected error: ..."}` |
 
 The function **never raises** — always returns a dict.
 
@@ -250,7 +250,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 });
 ```
 
-> **Note**: Groq API calls take 5–15 seconds. Add loading states on the frontend. For higher scale, consider Celery + Redis for async processing.
+> **Note**: Vision API calls take 1–15 seconds. Add loading states on the frontend. For higher scale, consider Celery + Redis for async processing.
 
 ### Project Structure
 
@@ -259,7 +259,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 │   ├── __init__.py               # Exports: BankReceipt, extract_receipt
 │   ├── schemas.py                # Pydantic BankReceipt model
 │   ├── utils.py                  # Parsers: currency, date, MIME detection
-│   ├── agent.py                  # Agno Agent + Groq Vision (30s timeout)
+│   ├── agent.py                  # Agno Agent + DeepSeek Vision (fallback, 30s timeout)
 │   ├── processors/
 │   │   ├── __init__.py
 │   │   ├── image_processor.py    # Resize, EXIF correction, JPEG
@@ -288,8 +288,8 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 |------------|----------|---------|
 | Python ≥ 3.12 | ✔ | Runtime |
 | poppler-utils | ✔ (PDF only) | pdf2image — converts PDF pages to images via `pdftoppm` |
-| Internet | ✔ | Groq API |
-| GROQ_API_KEY | ✔ | Groq authentication |
+| Internet | ✔ | Vision APIs (DeepSeek primary) |
+| DEEPSEEK_API_KEY | ✔ | DeepSeek authentication |
 
 ---
 
@@ -309,30 +309,30 @@ Defina estas variáveis de ambiente:
 
 | Variável | Obrigatória | Descrição | Padrão |
 |----------|-------------|-----------|--------|
-| `GROQ_API_KEY` | ✅ Sim | Chave da API Groq (obtenha em [console.groq.com](https://console.groq.com/keys)) | — |
-| `GROQ_MODEL` | ❌ Não | Modelo de visão Groq | `qwen/qwen3.8-27b` |
+| `DEEPSEEK_API_KEY` | ✅ Sim | Chave da API DeepSeek (obtenha em [platform.deepseek.com](https://platform.deepseek.com/api_keys)) | — |
+| `MODEL_FALLBACK_LIST` | ❌ Não | Lista de fallback `provedor:modelo` em ordem, separada por vírgula. Provedores suportados: `deepseek`, `groq` | `deepseek:deepseek-flash` |
+| `GROQ_API_KEY` | ❌ Não | Chave da API Groq — necessária apenas se Groq estiver na lista de fallback (obtenha em [console.groq.com](https://console.groq.com/keys)) | — |
 
 ```bash
-export GROQ_API_KEY=gsk_sua_chave_aqui
-export GROQ_MODEL=qwen/qwen3.8-27b
+export DEEPSEEK_API_KEY=sk_sua_chave_aqui
+export MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b
 ```
 
 Ou com arquivo `.env` (seu app carrega via `python-dotenv`):
 
 ```
-GROQ_API_KEY=gsk_sua_chave_aqui
-GROQ_MODEL=qwen/qwen3.8-27b
+DEEPSEEK_API_KEY=sk_sua_chave_aqui
+MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b
 ```
 
 ### Modelos Recomendados
 
-| Modelo | Velocidade | Qualidade | Custo |
-|--------|------------|-----------|-------|
-| `qwen/qwen3.8-27b` | ⚡ Rápido | ✅ Boa | $0,60/1M tokens |
-| `llama-3.2-90b-vision-preview` | ⚡ Rápido | ✅ Excelente | $0,90/1M tokens |
-| `llama-3.2-11b-vision-preview` | ⚡ Muito rápido | ✅ OK | $0,18/1M tokens |
+| Modelo | Provedor | Visão | Custo (input/1M tokens) |
+|--------|----------|-------|--------------------------|
+| `deepseek-flash` | DeepSeek | ✅ | $0,15 |
+| `qwen/qwen3.8-27b` | Groq | ✅ | $0,80 |
 
-Todos os modelos listados estão disponíveis no nível gratuito da Groq para prototipação.
+O extrator tenta os modelos de `MODEL_FALLBACK_LIST` em ordem e cacheia o primeiro que funcionar. Se ele falhar depois, tenta o próximo da lista. Use `extract_receipt(arquivo, force_retry=True)` para ignorar o cache e recomeçar da lista.
 
 ### Dependência de Sistema: poppler-utils
 
@@ -358,7 +358,7 @@ Se você processa **apenas imagens** (PNG/JPG), o `poppler-utils` **não é nece
 
 ### Visão Geral
 
-Módulo Python para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC). Recebe PDF ou imagem, processa com IA de visão via Groq e retorna JSON validado com valor, data, tipo, bancos e favorecido.
+Módulo Python para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC). Recebe PDF ou imagem, processa com IA de visão via DeepSeek (com fallback Groq) e retorna JSON validado com valor, data, tipo, bancos e favorecido.
 
 ### Stack
 
@@ -366,7 +366,7 @@ Módulo Python para extração automatizada de dados de comprovantes bancários 
 |--------|-----------|
 | Runtime | Python ≥3.12 |
 | Framework de Agentes | Agno |
-| Modelo de Visão | Groq (qwen3.8-27b) |
+| Modelo de Visão | DeepSeek (deepseek-flash), fallback Groq |
 | PDF → Imagem | pdf2image + poppler-utils |
 | Processamento de Imagem | Pillow |
 | Schemas | Pydantic v2 |
@@ -387,7 +387,7 @@ Entrada (str | Path | BytesIO | UploadedFile)
        └── .png/jpg → ImageProcessor → JPEG otimizado (max 2048px)
        │
        ▼
-  extract_from_image() ───→ Groq Vision (qwen3.6-27b)
+  extract_from_image() ───→ DeepSeek Vision (deepseek-flash)
        │
        ▼
   BankReceipt (Pydantic validado)
@@ -444,9 +444,9 @@ git clone <repo>
 cd receipt-extractor
 uv sync
 
-# Configurar chave da API Groq
+# Configurar chave da API DeepSeek
 cp .env.example .env
-# Edite .env com sua chave: https://console.groq.com/keys
+# Edite .env com sua chave: https://platform.deepseek.com/api_keys
 ```
 
 #### Uso via CLI
@@ -488,7 +488,7 @@ def extract_receipt(arquivo: str | Path | BytesIO | UploadedFile) -> dict
 | Arquivo inválido | `{"erro": "Não foi possível processar o PDF..."}` |
 | Formato não suportado | `{"erro": "Formato não suportado. Aceito: PDF, PNG, JPG"}` |
 | Arquivo muito grande (>50MB) | `{"erro": "Arquivo excede o limite de 50MB"}` |
-| API Groq indisponível | `{"erro": "Erro inesperado: ..."}` |
+| Todos os modelos de visão falham | `{"erro": "Erro inesperado: ..."}` |
 
 A função **nunca levanta exceção** — sempre retorna um dict.
 
@@ -539,7 +539,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 });
 ```
 
-> **Atenção**: Chamadas à API Groq levam de 5 a 15 segundos. Implemente loading states no frontend. Para escala maior, considere Celery + Redis para processamento assíncrono.
+> **Atenção**: Chamadas à API de visão levam de 1 a 15 segundos. Implemente loading states no frontend. Para escala maior, considere Celery + Redis para processamento assíncrono.
 
 ### Estrutura do Projeto
 
@@ -548,7 +548,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 │   ├── __init__.py               # Exporta: BankReceipt, extract_receipt
 │   ├── schemas.py                # Modelo Pydantic BankReceipt
 │   ├── utils.py                  # Parsers: moeda, data, detecção MIME
-│   ├── agent.py                  # Agno Agent + Groq Vision (timeout 30s)
+│   ├── agent.py                  # Agno Agent + DeepSeek Vision (fallback, timeout 30s)
 │   ├── processors/
 │   │   ├── __init__.py
 │   │   ├── image_processor.py    # Redimensionamento, EXIF, JPEG
@@ -577,8 +577,8 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 |-------------|-------------|----------|
 | Python ≥ 3.12 | ✔ | Runtime |
 | poppler-utils | ✔ (só PDF) | pdf2image — converte páginas PDF em imagem via `pdftoppm` |
-| Internet | ✔ | API Groq |
-| GROQ_API_KEY | ✔ | Autenticação Groq |
+| Internet | ✔ | APIs de visão (DeepSeek principal) |
+| DEEPSEEK_API_KEY | ✔ | Autenticação DeepSeek |
 
 ### Desenvolvimento
 
@@ -594,7 +594,7 @@ pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 ### Princípios / Principles
 
 - **Modularity**: Independent package, Django bridge via `extract_receipt()`
-- **Security**: API key via `.env` (gitignored), file size limit (50MB), Groq timeout (30s), MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
+- **Security**: API key via `.env` (gitignored), file size limit (50MB), 30s model timeout, MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
 - **Strong Typing**: Pydantic schemas for input/output validation
-- **Testability**: 101 tests with 100% code coverage, mocked Groq API
+- **Testability**: 110 tests with 100% code coverage, mocked vision APIs
 - **Simplicity**: YAGNI — only the requested fields, no extra abstractions

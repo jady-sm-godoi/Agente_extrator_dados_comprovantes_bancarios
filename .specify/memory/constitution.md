@@ -1,13 +1,14 @@
 <!--
   Sync Impact Report
-  Version: 0.0.0 → 1.0.0 (initial ratification)
+  Version: 1.0.0 → 1.1.0
   Principles created: I. Modularidade, II. Segurança, III. Tipagem Forte, IV. Testabilidade, V. Simplicidade
-  Templates requiring updates: plan-template.md (✅ updated), spec-template.md (✅ updated), tasks-template.md (✅ updated)
+  Emendas: E001 (modelo de visão DeepSeek + fallback Groq)
+  Templates requiring updates: none
 -->
 
 # Agente Extrator de Comprovantes Bancários — Constituição
 
-**Versão**: 1.0.0 | **Ratificada**: 2026-07-24 | **Última Emenda**: 2026-07-24
+**Versão**: 1.1.0 | **Ratificada**: 2026-07-24 | **Última Emenda**: 2026-10-08
 
 ## Princípios Fundamentais
 
@@ -17,7 +18,7 @@ O módulo de extração (`agente_extrator/`) deve ser um pacote Python independe
 
 ### II. Segurança
 
-Nenhuma chave de API (Groq, OpenAI, etc.) pode ser hardcoded no código fonte. Todas as credenciais devem ser carregadas de variáveis de ambiente via `python-dotenv`. Arquivos temporários criados durante o processamento (PDF convertido para imagem, etc.) devem ser removidos após o uso. O arquivo `.env` nunca deve ser commitado.
+Nenhuma chave de API (Groq, DeepSeek, OpenAI, etc.) pode ser hardcoded no código fonte. Todas as credenciais devem ser carregadas de variáveis de ambiente via `python-dotenv`. Arquivos temporários criados durante o processamento (PDF convertido para imagem, etc.) devem ser removidos após o uso. O arquivo `.env` nunca deve ser commitado. A escolha de provedor de IA não é restrita por localização geográfica dos servidores; a avaliação é exclusivamente funcional (qualidade, latência, custo).
 
 ### III. Tipagem Forte
 
@@ -37,7 +38,7 @@ Apenas os campos solicitados devem ser extraídos: valor, data_transacao, numero
 |--------|-----------|--------|
 | Runtime | Python | ≥3.13 |
 | Framework de Agentes | Agno | latest |
-| Modelo de Visão | Groq (Llama 3.2 90B Vision) | via API |
+| Modelo de Visão | DeepSeek (`deepseek-flash`) + fallback Groq (`qwen/qwen3.8-27b`) | via API |
 | PDF → Imagem | pdf2image + poppler-utils | latest |
 | Imagem | Pillow | latest |
 | Schemas | Pydantic | v2 |
@@ -67,3 +68,13 @@ Apenas os campos solicitados devem ser extraídos: valor, data_transacao, numero
   - PATCH: Correções, refinamentos de prompt, melhorias internas
 - **Emendas**: Propostas devem ser documentadas com justificativa e aprovadas antes da implementação
 - **Conformidade**: Todo PR deve ser revisado contra estes princípios antes de merge
+
+## Registro de Emendas
+
+### E001 — Troca do modelo de visão para DeepSeek com fallback Groq (2026-10-08)
+
+**Justificativa**: O modelo anterior (Groq Llama 3.2 90B Vision) foi descontinuado na Groq. O `deepseek-flash` é o único modelo de visão ativo na DeepSeek e oferece custo ~6x menor por extração que o `qwen/qwen3.8-27b` da Groq.
+
+**Decisão**: `deepseek-flash` como modelo primário; lista de fallback `MODEL_FALLBACK_LIST` permite alternância ordenada entre provedores via variável de ambiente (padrão: `deepseek:deepseek-flash`). A lista é opcional — quando ausente, usa somente o padrão.
+
+**Pontos alterados**: Stack Tecnológica (modelo de visão), Princípio II (esclarecimento sobre provedores). Não altera o schema de saída `BankReceipt` (compatível com v1.0.0).
