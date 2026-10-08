@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.1.2** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
+**v0.2.0** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
 
 ---
 
@@ -42,6 +42,21 @@ The extractor tries the models in `MODEL_FALLBACK_LIST` in order and caches the 
 |-------|----------|--------|----------------------|
 | `deepseek-flash` | DeepSeek | ✅ | $0.15 |
 | `qwen/qwen3.8-27b` | Groq | ✅ | $0.80 |
+
+**Detecting fallback on the client:** when a provider fails but a fallback succeeds, the output dict includes a `fallback` field so the operator can fix the relevant API key:
+
+```json
+{
+  "valor": 12.5, "tipo": "PIX", "...": "...",
+  "fallback": {
+    "usado": true,
+    "motivo": "authentication",
+    "provedores_falhos": ["deepseek:deepseek-flash"]
+  }
+}
+```
+
+`motivo` is a safe category (`authentication`, `timeout`, `parse`, `unknown`) — it never contains API keys, request IDs or raw provider messages. The HTTP status stays implicit (200) on success; error responses still use `status`/`motivo` with `erro_para_status()`.
 
 ## System Dependency: poppler-utils
 
@@ -279,7 +294,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 │   │   └── pdf_processor.py      # PDF → image (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (50MB limit, logging)
 │
-├── tests/                        # Test suite (112 tests, 100% coverage)
+├── tests/                        # Test suite (121 tests, 100% coverage)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -346,6 +361,21 @@ MODEL_FALLBACK_LIST=deepseek:deepseek-flash,groq:qwen/qwen3.8-27b
 | `qwen/qwen3.8-27b` | Groq | ✅ | $0,80 |
 
 O extrator tenta os modelos de `MODEL_FALLBACK_LIST` em ordem e cacheia o primeiro que funcionar. Se ele falhar depois, tenta o próximo da lista. Use `extract_receipt(arquivo, force_retry=True)` para ignorar o cache e recomeçar da lista.
+
+**Detectando o fallback no cliente:** quando um provedor falha mas o fallback extrai com sucesso, o dict de saída inclui o campo `fallback` para o operador corrigir a chave relevante:
+
+```json
+{
+  "valor": 12.5, "tipo": "PIX", "...": "...",
+  "fallback": {
+    "usado": true,
+    "motivo": "authentication",
+    "provedores_falhos": ["deepseek:deepseek-flash"]
+  }
+}
+```
+
+`motivo` é sempre uma categoria segura (`authentication`, `timeout`, `parse`, `unknown`) — nunca contém chave de API, `request_id` ou mensagem crua do provedor. O `status` HTTP continua implícito (200) no sucesso; respostas de erro seguem usando `status`/`motivo` com `erro_para_status()`.
 
 ### Dependência de Sistema: poppler-utils
 
@@ -581,7 +611,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 │   │   └── pdf_processor.py      # PDF → imagem (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (limite 50MB, logging)
 │
-├── tests/                        # Suite de testes (112 testes, 100% cobertura)
+├── tests/                        # Suite de testes (121 testes, 100% cobertura)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -622,5 +652,5 @@ pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 - **Modularity**: Independent package, Django bridge via `extract_receipt()`
 - **Security**: API key via `.env` (gitignored), file size limit (50MB), 30s model timeout, MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
 - **Strong Typing**: Pydantic schemas for input/output validation
-- **Testability**: 112 tests with 100% code coverage, mocked vision APIs
+- **Testability**: 121 tests with 100% code coverage, mocked vision APIs
 - **Simplicity**: YAGNI — only the requested fields, no extra abstractions

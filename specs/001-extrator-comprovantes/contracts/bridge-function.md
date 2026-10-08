@@ -24,6 +24,31 @@ def extract_receipt(arquivo: ReceiptInput) -> dict:
 }
 ```
 
+### Output (sucesso com fallback)
+
+Quando um ou mais provedores primários falham, mas o fallback extrai com sucesso,
+o dict de dados ganha o campo `fallback`:
+
+```python
+{
+    "valor": 1234.56,
+    "data_transacao": "2026-07-24",
+    "tipo": "PIX",
+    ...
+    "fallback": {
+        "usado": True,                          # fallback foi disparado
+        "motivo": "authentication",             # categoria genérica da falha
+        "provedores_falhos": ["deepseek:deepseek-flash"],  # specs que falharam
+    },
+}
+```
+
+- `motivo` é sempre uma categoria segura (`authentication`, `timeout`, `parse`, `unknown`) —
+  **nunca** contém chave (nem mascarada), `request_id` ou texto cru do provedor.
+- `provedores_falhos` lista as specs (`provedor:modelo`) que falharam antes do sucesso.
+- O `status` HTTP permanece implícito (200) — não é adicionado campo `status` no sucesso.
+- O detalhe técnico cru vai apenas para o log do servidor.
+
 ### Output (erro)
 
 O retorno de erro é neutro e seguro para o cliente. Detalhes técnicos (chaves, request_ids, mensagens de provedor) são logados no servidor e **nunca** expostos.

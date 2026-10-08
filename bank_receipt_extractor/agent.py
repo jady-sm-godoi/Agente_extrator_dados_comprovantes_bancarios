@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import dataclass, field
 
 from agno.agent import Agent
 from agno.media import Image as AgnoImage
@@ -35,6 +36,21 @@ DEFAULT_TIMEOUT = 30
 
 # Cache do agente que já funcionou (evita re-iterar o fallback a cada chamada)
 _working_agent: Agent | None = None
+
+
+@dataclass
+class ExtractionResult:
+    """Resultado da extração com dados de fallback (seguro para o cliente).
+
+    `provedores_falhos` lista as specs dos provedores que falharam antes do
+    sucesso (ex.: "deepseek:deepseek-flash"). `motivo` é a categoria genérica
+    da primeira falha. Nenhum detalhe técnico (chave, request_id, texto cru
+    do provedor) é exposto aqui — isso fica restrito ao log do servidor.
+    """
+
+    receipt: BankReceipt
+    provedores_falhos: list[str] = field(default_factory=list)
+    motivo: str = ""
 
 
 def _parse_model_list() -> list[str]:
@@ -104,6 +120,27 @@ def reset_agent() -> None:
     _working_agent = None
 
 
+def _classificar_falha(exc: Exception) -> str:
+    """Classifica uma falha de modelo em uma categoria genérica.
+
+    A categoria é segura para o cliente (sem chave, sem request_id, sem
+    texto cru do provedor). Usada para preencher `ExtractionResult.motivo`.
+    """
+    msg = str(exc).lower()
+    if isinstance(exc, TimeoutError) or "timeout" in msg or "timed out" in msg:
+        return "timeout"
+    if (
+        "authentication" in msg
+        or "invalid" in msg
+        or "api key" in msg
+        or "not set" in msg
+    ):
+        return "authentication"
+    if "inesperada" in msg or "não retornou" in msg or "did not" in msg:
+        return "parse"
+    return "unknown"
+
+
 def _run_agent(agent: Agent, image_bytes: bytes) -> BankReceipt:
     response = agent.run(
         "Extraia os dados deste comprovante bancário.",
@@ -126,28 +163,39 @@ def _run_agent(agent: Agent, image_bytes: bytes) -> BankReceipt:
     raise ValueError("Agente não retornou dados válidos.")
 
 
-def extract_from_image(image_bytes: bytes, force_retry: bool = False) -> BankReceipt:
+def extract_from_image(
+    image_bytes: bytes, force_retry: bool = False
+) -> ExtractionResult:
     """Extrai dados de um comprovante a partir da imagem.
 
     Percorre a lista de modelos de MODEL_FALLBACK_LIST em ordem de prioridade.
     Cacheia o primeiro modelo que funcionar e o reutiliza nas chamadas seguintes.
     force_retry ignora o cache e recomeça da lista.
+
+    Em caso de sucesso com fallback, `ExtractionResult.provedores_falhos` traz
+    as specs dos provedores que falharam e `motivo` a categoria da primeira
+    falha. O detalhe técnico fica apenas no log do servidor.
     """
     global _working_agent
     if force_retry:
         _working_agent = None
 
-    failures: list[str] = []
+    provedores_falhos: list[str] = []
+    falhas_tecnicas: list[str] = []
+    primeira_falha: Exception | None = None
 
     if _working_agent is not None:
         try:
-            return _run_agent(_working_agent, image_bytes)
+            receipt = _run_agent(_working_agent, image_bytes)
+            return ExtractionResult(receipt)
         except Exception as e:
             cached = _working_agent
             model = cached.model
             assert model is not None
             spec_name = f"{model.provider}:{model.id}"
-            failures.append(f"{spec_name}: {e}")
+            provedores_falhos.append(spec_name)
+            falhas_tecnicas.append(f"{spec_name}: {e}")
+            primeira_falha = primeira_falha or e
             logger.warning(
                 "Falha com modelo cacheado %s: %s", spec_name, e, exc_info=True
             )
@@ -158,10 +206,18 @@ def extract_from_image(image_bytes: bytes, force_retry: bool = False) -> BankRec
             agent = _build_agent(spec)
             receipt = _run_agent(agent, image_bytes)
             _working_agent = agent
-            return receipt
+            return ExtractionResult(
+                receipt,
+                provedores_falhos=provedores_falhos,
+                motivo=_classificar_falha(primeira_falha)
+                if primeira_falha is not None
+                else "",
+            )
         except Exception as e:
-            failures.append(f"{spec}: {e}")
+            provedores_falhos.append(spec)
+            falhas_tecnicas.append(f"{spec}: {e}")
+            primeira_falha = primeira_falha or e
             logger.warning("Falha com modelo %s: %s", spec, e, exc_info=True)
             continue
 
-    raise ProviderError(causa=" | ".join(failures))
+    raise ProviderError(causa=" | ".join(falhas_tecnicas))

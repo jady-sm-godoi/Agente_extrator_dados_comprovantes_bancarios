@@ -4,6 +4,7 @@ import pytest
 
 from bank_receipt_extractor.agent import (
     _build_agent,
+    _classificar_falha,
     _parse_model_list,
     _run_agent,
     extract_from_image,
@@ -82,9 +83,11 @@ def test_extract_from_image_success(sample_bank_receipt, monkeypatch):
     mock_agent.run.return_value.content = sample_bank_receipt
     with patch("bank_receipt_extractor.agent._build_agent", return_value=mock_agent):
         result = extract_from_image(b"fake-image-bytes")
-    assert isinstance(result, BankReceipt)
-    assert result.valor == sample_bank_receipt.valor
-    assert result.tipo == "PIX"
+    assert isinstance(result.receipt, BankReceipt)
+    assert result.receipt.valor == sample_bank_receipt.valor
+    assert result.receipt.tipo == "PIX"
+    assert result.provedores_falhos == []
+    assert result.motivo == ""
 
 
 def test_extract_from_image_returns_dict(sample_receipt_data, monkeypatch):
@@ -95,8 +98,8 @@ def test_extract_from_image_returns_dict(sample_receipt_data, monkeypatch):
     mock_agent.run.return_value.content = sample_receipt_data
     with patch("bank_receipt_extractor.agent._build_agent", return_value=mock_agent):
         result = extract_from_image(b"fake-image-bytes")
-    assert isinstance(result, BankReceipt)
-    assert result.valor == sample_receipt_data["valor"]
+    assert isinstance(result.receipt, BankReceipt)
+    assert result.receipt.valor == sample_receipt_data["valor"]
 
 
 def test_extract_from_image_no_content(monkeypatch):
@@ -175,7 +178,9 @@ def test_extract_from_image_fallback_order(sample_bank_receipt, monkeypatch):
 
     with patch("bank_receipt_extractor.agent._build_agent", side_effect=fake_build):
         result = extract_from_image(b"fake-image-bytes")
-    assert result == sample_bank_receipt
+    assert result.receipt == sample_bank_receipt
+    assert result.provedores_falhos == ["deepseek:deepseek-flash"]
+    assert result.motivo == "unknown"
     assert built[0] == "deepseek:deepseek-flash"
     assert built[1] == "groq:qwen/qwen3.8-27b"
 
@@ -232,7 +237,9 @@ def test_extract_from_image_cached_fails_then_fallback(sample_bank_receipt, monk
     monkeypatch.setattr(agent_mod, "_working_agent", cached)
     with patch("bank_receipt_extractor.agent._build_agent", return_value=fallback):
         result = extract_from_image(b"fake-image-bytes")
-    assert result == sample_bank_receipt
+    assert result.receipt == sample_bank_receipt
+    assert result.provedores_falhos == ["DeepSeek:deepseek-flash"]
+    assert result.motivo == "unknown"
     assert agent_mod._working_agent is fallback
 
 
@@ -246,3 +253,52 @@ def test_extract_from_image_all_fail(monkeypatch):
         ProviderError
     ):
         extract_from_image(b"fake-image-bytes")
+
+
+def test_classificar_falha_authentication():
+    exc = ValueError(
+        "Authentication Fails, Your api key: ****af52 is invalid (request_id: ...)"
+    )
+    assert _classificar_falha(exc) == "authentication"
+
+
+def test_classificar_falha_timeout():
+    assert _classificar_falha(TimeoutError("timed out")) == "timeout"
+    assert _classificar_falha(ValueError("request timed out")) == "timeout"
+
+
+def test_classificar_falha_parse():
+    assert _classificar_falha(ValueError("Resposta inesperada do agente")) == "parse"
+    assert _classificar_falha(ValueError("Agente não retornou dados válidos")) == "parse"
+
+
+def test_classificar_falha_unknown():
+    assert _classificar_falha(RuntimeError("boom")) == "unknown"
+
+
+def test_extract_from_image_fallback_motivo_authentication(sample_bank_receipt, monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    monkeypatch.setenv(
+        "MODEL_FALLBACK_LIST",
+        "deepseek:deepseek-flash,groq:qwen/qwen3.8-27b",
+    )
+    failing = MagicMock()
+    failing.model.provider = "DeepSeek"
+    failing.model.id = "deepseek-flash"
+    failing.run.side_effect = ValueError("Authentication Fails, invalid api key")
+    working = MagicMock()
+    working.model.provider = "Groq"
+    working.model.id = "qwen/qwen3.8-27b"
+    working.run.return_value.content = sample_bank_receipt
+
+    def fake_build(spec):
+        return failing if "deepseek" in spec else working
+
+    import bank_receipt_extractor.agent as agent_mod
+
+    monkeypatch.setattr(agent_mod, "_working_agent", None)
+    with patch("bank_receipt_extractor.agent._build_agent", side_effect=fake_build):
+        result = extract_from_image(b"fake-image-bytes")
+    assert result.provedores_falhos == ["deepseek:deepseek-flash"]
+    assert result.motivo == "authentication"

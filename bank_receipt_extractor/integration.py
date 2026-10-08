@@ -40,9 +40,15 @@ def extract_receipt(arquivo, force_retry: bool = False) -> dict:
         else:  # pragma: no cover
             raise UnsupportedFormatError()
         receipt = extract_from_image(image_bytes, force_retry=force_retry)
-        data = receipt.model_dump()
+        data = receipt.receipt.model_dump()
         data["valor"] = float(data["valor"])
         data["data_transacao"] = str(data["data_transacao"])
+        if receipt.provedores_falhos:
+            data["fallback"] = {
+                "usado": True,
+                "motivo": receipt.motivo,
+                "provedores_falhos": receipt.provedores_falhos,
+            }
         return data
     except ExtractionError as e:
         logger.warning("Falha na extração: %s", e)
