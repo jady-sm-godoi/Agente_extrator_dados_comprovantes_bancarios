@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.1.1** · Python 3.13 · [Agno](https://agno.build) + [Groq](https://groq.com)
+**v0.1.1** · Python ≥3.12 · [Agno](https://agno.build) + [Groq](https://groq.com)
 
 ---
 
@@ -19,25 +19,25 @@ Set these environment variables:
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
 | `GROQ_API_KEY` | ✅ Yes | Groq API key (get one at [console.groq.com](https://console.groq.com/keys)) | — |
-| `GROQ_MODEL` | ❌ No | Groq vision model ID | `qwen/qwen3.6-27b` |
+| `GROQ_MODEL` | ❌ No | Groq vision model ID | `qwen/qwen3.8-27b` |
 
 ```bash
 export GROQ_API_KEY=gsk_your_key_here
-export GROQ_MODEL=qwen/qwen3.6-27b
+export GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 Or with a `.env` file (your app loads it via `python-dotenv`):
 
 ```
 GROQ_API_KEY=gsk_your_key_here
-GROQ_MODEL=qwen/qwen3.6-27b
+GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 ### Recommended Models
 
 | Model | Speed | Quality | Cost |
 |-------|-------|---------|------|
-| `qwen/qwen3.6-27b` | ⚡ Fast | ✅ Good | $0.60/1M tokens |
+| `qwen/qwen3.8-27b` | ⚡ Fast | ✅ Good | $0.60/1M tokens |
 | `llama-3.2-90b-vision-preview` | ⚡ Fast | ✅ Excellent | $0.90/1M tokens |
 | `llama-3.2-11b-vision-preview` | ⚡ Very fast | ✅ OK | $0.18/1M tokens |
 
@@ -75,9 +75,9 @@ Python module for automated extraction of Brazilian bank receipt data (PIX, TED,
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Python ≥3.13 |
+| Runtime | Python ≥3.12 |
 | Agent Framework | Agno |
-| Vision Model | Groq (qwen3.6-27b) |
+| Vision Model | Groq (qwen3.8-27b) |
 | PDF → Image | pdf2image + poppler-utils |
 | Image Processing | Pillow |
 | Schemas | Pydantic v2 |
@@ -144,8 +144,8 @@ Error → {"erro": "descriptive message"}
 sudo apt install poppler-utils      # Ubuntu/Debian
 brew install poppler                 # macOS
 
-# Python 3.13
-python --version   # ≥ 3.13
+# Python 3.12
+python --version   # ≥ 3.12
 ```
 
 #### Installation
@@ -286,7 +286,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 
 | Dependency | Required | Purpose |
 |------------|----------|---------|
-| Python ≥ 3.13 | ✔ | Runtime |
+| Python ≥ 3.12 | ✔ | Runtime |
 | poppler-utils | ✔ (PDF only) | pdf2image — converts PDF pages to images via `pdftoppm` |
 | Internet | ✔ | Groq API |
 | GROQ_API_KEY | ✔ | Groq authentication |
@@ -310,25 +310,25 @@ Defina estas variáveis de ambiente:
 | Variável | Obrigatória | Descrição | Padrão |
 |----------|-------------|-----------|--------|
 | `GROQ_API_KEY` | ✅ Sim | Chave da API Groq (obtenha em [console.groq.com](https://console.groq.com/keys)) | — |
-| `GROQ_MODEL` | ❌ Não | Modelo de visão Groq | `qwen/qwen3.6-27b` |
+| `GROQ_MODEL` | ❌ Não | Modelo de visão Groq | `qwen/qwen3.8-27b` |
 
 ```bash
 export GROQ_API_KEY=gsk_sua_chave_aqui
-export GROQ_MODEL=qwen/qwen3.6-27b
+export GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 Ou com arquivo `.env` (seu app carrega via `python-dotenv`):
 
 ```
 GROQ_API_KEY=gsk_sua_chave_aqui
-GROQ_MODEL=qwen/qwen3.6-27b
+GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 ### Modelos Recomendados
 
 | Modelo | Velocidade | Qualidade | Custo |
 |--------|------------|-----------|-------|
-| `qwen/qwen3.6-27b` | ⚡ Rápido | ✅ Boa | $0,60/1M tokens |
+| `qwen/qwen3.8-27b` | ⚡ Rápido | ✅ Boa | $0,60/1M tokens |
 | `llama-3.2-90b-vision-preview` | ⚡ Rápido | ✅ Excelente | $0,90/1M tokens |
 | `llama-3.2-11b-vision-preview` | ⚡ Muito rápido | ✅ OK | $0,18/1M tokens |
 
@@ -364,9 +364,9 @@ Módulo Python para extração automatizada de dados de comprovantes bancários 
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Runtime | Python ≥3.13 |
+| Runtime | Python ≥3.12 |
 | Framework de Agentes | Agno |
-| Modelo de Visão | Groq (qwen3.6-27b) |
+| Modelo de Visão | Groq (qwen3.8-27b) |
 | PDF → Imagem | pdf2image + poppler-utils |
 | Processamento de Imagem | Pillow |
 | Schemas | Pydantic v2 |
@@ -433,8 +433,8 @@ Erro → {"erro": "mensagem descritiva"}
 sudo apt install poppler-utils      # Ubuntu/Debian
 brew install poppler                 # macOS
 
-# Python 3.13
-python --version   # ≥ 3.13
+# Python 3.12
+python --version   # ≥ 3.12
 ```
 
 #### Instalação
@@ -575,7 +575,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 
 | Dependência | Obrigatório | Para quê |
 |-------------|-------------|----------|
-| Python ≥ 3.13 | ✔ | Runtime |
+| Python ≥ 3.12 | ✔ | Runtime |
 | poppler-utils | ✔ (só PDF) | pdf2image — converte páginas PDF em imagem via `pdftoppm` |
 | Internet | ✔ | API Groq |
 | GROQ_API_KEY | ✔ | Autenticação Groq |

@@ -8,11 +8,12 @@ dynamic = ["version"]
 description = "Automated Brazilian bank receipt data extraction (PIX, TED, DOC) using Agno and Groq"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
   { name = "Jady", email = "jady@example.com" },
 ]
 classifiers = [
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
