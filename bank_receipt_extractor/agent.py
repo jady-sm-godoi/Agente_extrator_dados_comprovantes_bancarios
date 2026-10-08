@@ -6,6 +6,7 @@ from agno.media import Image as AgnoImage
 from agno.models.deepseek import DeepSeek
 from agno.models.groq import Groq
 
+from bank_receipt_extractor.errors import ProviderError
 from bank_receipt_extractor.schemas import BankReceipt
 
 logger = logging.getLogger(__name__)
@@ -163,7 +164,4 @@ def extract_from_image(image_bytes: bytes, force_retry: bool = False) -> BankRec
             logger.warning("Falha com modelo %s: %s", spec, e, exc_info=True)
             continue
 
-    raise RuntimeError(
-        "Todos os modelos falharam na extração do comprovante. "
-        f"Falhas: {' | '.join(failures)}"
-    )
+    raise ProviderError(causa=" | ".join(failures))

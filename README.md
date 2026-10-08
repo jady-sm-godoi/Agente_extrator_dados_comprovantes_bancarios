@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.1.1** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
+**v0.1.2** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
 
 ---
 
@@ -196,12 +196,13 @@ def extract_receipt(file: str | Path | BytesIO | UploadedFile) -> dict
 | Scenario | Return |
 |----------|--------|
 | Success | `{"valor": float, "data_transacao": str, "tipo": str, ...}` |
-| Invalid file | `{"erro": "Could not process PDF..."}` |
-| Unsupported format | `{"erro": "Unsupported format. Accepted: PDF, PNG, JPG"}` |
-| File too large (>50MB) | `{"erro": "File exceeds the 50MB limit"}` |
-| All vision models fail | `{"erro": "Unexpected error: ..."}` |
+| Provider(s) down | `{"erro": "Extraction service unavailable. Try again later.", "status": 502, "motivo": "provider_error"}` |
+| Unsupported format | `{"erro": "Unsupported format. Accepted: PDF, PNG, JPG", "status": 415, "motivo": "unsupported_format"}` |
+| File too large (>50MB) | `{"erro": "File exceeds the 50MB limit", "status": 413, "motivo": "file_too_large"}` |
+| Invalid/unreadable file | `{"erro": "Could not read the file.", "status": 400, "motivo": "invalid_file"}` |
+| Model output failed validation | `{"erro": "Could not extract receipt data.", "status": 422, "motivo": "parse_error"}` |
 
-The function **never raises** — always returns a dict.
+The function **never raises** — always returns a dict. Error responses are **neutral**: internal details (API keys, request IDs, provider messages) are logged server-side and never exposed to the client. The error dict includes `status` (HTTP code) and `motivo` (classifier) for the view.
 
 ### Django Integration
 
@@ -209,7 +210,7 @@ The function **never raises** — always returns a dict.
 
 ```python
 from django.http import JsonResponse
-from bank_receipt_extractor.integration import extract_receipt
+from bank_receipt_extractor.integration import extract_receipt, erro_para_status
 
 @require_POST
 def extract_receipt_data(request):
@@ -217,8 +218,19 @@ def extract_receipt_data(request):
     if not file:
         return JsonResponse({"erro": "No file uploaded"}, status=400)
     data = extract_receipt(file)
-    return JsonResponse(data)
+    status = 200 if "erro" not in data else erro_para_status(data)
+    return JsonResponse(data, status=status)
 ```
+
+The `erro_para_status()` helper maps the error dict to the right HTTP status:
+
+| `motivo` | HTTP status |
+|----------|-------------|
+| `provider_error` | 502 Bad Gateway |
+| `unsupported_format` | 415 Unsupported Media Type |
+| `file_too_large` | 413 Payload Too Large |
+| `invalid_file` | 400 Bad Request |
+| `parse_error` | 422 Unprocessable Entity |
 
 #### Frontend (onchange + AJAX)
 
@@ -256,7 +268,8 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 
 ```
 ├── bank_receipt_extractor/       # Main package
-│   ├── __init__.py               # Exports: BankReceipt, extract_receipt
+│   ├── __init__.py               # Exports: BankReceipt, extract_receipt, erro_para_status
+│   ├── errors.py                 # Typed extraction errors + HTTP status mapping
 │   ├── schemas.py                # Pydantic BankReceipt model
 │   ├── utils.py                  # Parsers: currency, date, MIME detection
 │   ├── agent.py                  # Agno Agent + DeepSeek Vision (fallback, 30s timeout)
@@ -266,7 +279,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 │   │   └── pdf_processor.py      # PDF → image (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (50MB limit, logging)
 │
-├── tests/                        # Test suite (101 tests, 100% coverage)
+├── tests/                        # Test suite (112 tests, 100% coverage)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -485,12 +498,13 @@ def extract_receipt(arquivo: str | Path | BytesIO | UploadedFile) -> dict
 | Situação | Retorno |
 |----------|---------|
 | Sucesso | `{"valor": float, "data_transacao": str, "tipo": str, ...}` |
-| Arquivo inválido | `{"erro": "Não foi possível processar o PDF..."}` |
-| Formato não suportado | `{"erro": "Formato não suportado. Aceito: PDF, PNG, JPG"}` |
-| Arquivo muito grande (>50MB) | `{"erro": "Arquivo excede o limite de 50MB"}` |
-| Todos os modelos de visão falham | `{"erro": "Erro inesperado: ..."}` |
+| Provedor(es) indisponível(is) | `{"erro": "Serviço de extração indisponível. Tente novamente.", "status": 502, "motivo": "provider_error"}` |
+| Formato não suportado | `{"erro": "Formato não suportado. Aceito: PDF, PNG, JPG", "status": 415, "motivo": "unsupported_format"}` |
+| Arquivo muito grande (>50MB) | `{"erro": "Arquivo excede o limite de 50MB", "status": 413, "motivo": "file_too_large"}` |
+| Arquivo inválido/ilegível | `{"erro": "Não foi possível ler o arquivo.", "status": 400, "motivo": "invalid_file"}` |
+| Saída do modelo falhou validação | `{"erro": "Não foi possível extrair os dados do comprovante.", "status": 422, "motivo": "parse_error"}` |
 
-A função **nunca levanta exceção** — sempre retorna um dict.
+A função **nunca levanta exceção** — sempre retorna um dict. As respostas de erro são **neutras**: detalhes internos (chaves de API, request IDs, mensagens do provedor) são logados no servidor e nunca expostos ao cliente. O dict de erro inclui `status` (código HTTP) e `motivo` (classificador) para a view.
 
 ### Integração com Django
 
@@ -498,7 +512,7 @@ A função **nunca levanta exceção** — sempre retorna um dict.
 
 ```python
 from django.http import JsonResponse
-from bank_receipt_extractor.integration import extract_receipt
+from bank_receipt_extractor.integration import extract_receipt, erro_para_status
 
 @require_POST
 def extrair_dados_comprovante(request):
@@ -506,8 +520,19 @@ def extrair_dados_comprovante(request):
     if not arquivo:
         return JsonResponse({"erro": "Nenhum arquivo enviado"}, status=400)
     dados = extract_receipt(arquivo)
-    return JsonResponse(dados)
+    status = 200 if "erro" not in dados else erro_para_status(dados)
+    return JsonResponse(dados, status=status)
 ```
+
+O helper `erro_para_status()` mapeia o dict de erro para o código HTTP correto:
+
+| `motivo` | Código HTTP |
+|----------|-------------|
+| `provider_error` | 502 Bad Gateway |
+| `unsupported_format` | 415 Unsupported Media Type |
+| `file_too_large` | 413 Payload Too Large |
+| `invalid_file` | 400 Bad Request |
+| `parse_error` | 422 Unprocessable Entity |
 
 #### Frontend (onchange + AJAX)
 
@@ -545,7 +570,8 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 
 ```
 ├── bank_receipt_extractor/       # Pacote principal
-│   ├── __init__.py               # Exporta: BankReceipt, extract_receipt
+│   ├── __init__.py               # Exporta: BankReceipt, extract_receipt, erro_para_status
+│   ├── errors.py                 # Erros tipados de extração + status HTTP
 │   ├── schemas.py                # Modelo Pydantic BankReceipt
 │   ├── utils.py                  # Parsers: moeda, data, detecção MIME
 │   ├── agent.py                  # Agno Agent + DeepSeek Vision (fallback, timeout 30s)
@@ -555,7 +581,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 │   │   └── pdf_processor.py      # PDF → imagem (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (limite 50MB, logging)
 │
-├── tests/                        # Suite de testes (101 testes, 100% cobertura)
+├── tests/                        # Suite de testes (112 testes, 100% cobertura)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -596,5 +622,5 @@ pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 - **Modularity**: Independent package, Django bridge via `extract_receipt()`
 - **Security**: API key via `.env` (gitignored), file size limit (50MB), 30s model timeout, MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
 - **Strong Typing**: Pydantic schemas for input/output validation
-- **Testability**: 110 tests with 100% code coverage, mocked vision APIs
+- **Testability**: 112 tests with 100% code coverage, mocked vision APIs
 - **Simplicity**: YAGNI — only the requested fields, no extra abstractions

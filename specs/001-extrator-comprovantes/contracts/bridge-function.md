@@ -26,11 +26,41 @@ def extract_receipt(arquivo: ReceiptInput) -> dict:
 
 ### Output (erro)
 
+O retorno de erro é neutro e seguro para o cliente. Detalhes técnicos (chaves, request_ids, mensagens de provedor) são logados no servidor e **nunca** expostos.
+
 ```python
 {
-    "erro": "Mensagem descritiva do erro"
+    "erro": "Serviço de extração indisponível. Tente novamente.",  # mensagem neutra
+    "status": 502,                                                 # HTTP status sugerido
+    "motivo": "provider_error",                                    # classificador para a view
 }
 ```
+
+Ou, para encurtar o dict:
+
+```python
+{"erro": "Não foi possível ler o arquivo.", "status": 400, "motivo": "invalid_file"}
+```
+
+Para a view Django obter o status HTTP, use `erro_para_status(resultado)`:
+
+```python
+from bank_receipt_extractor.integration import extract_receipt, erro_para_status
+
+resultado = extract_receipt(comprovante)
+status = 200 if "erro" not in resultado else erro_para_status(resultado)
+```
+
+### Códigos HTTP por cenário
+
+| Cenário | status | motivo | Mensagem neutra |
+|---------|--------|--------|-----------------|
+| Todos os provedores de IA falharam | 502 | `provider_error` | Serviço de extração indisponível. Tente novamente. |
+| Formato não suportado (não PDF/PNG/JPG) | 415 | `unsupported_format` | Formato não suportado. Aceito: PDF, PNG, JPG. |
+| Arquivo > 50MB | 413 | `file_too_large` | Arquivo excede o limite de 50MB. |
+| Arquivo corrompido/ilegível | 400 | `invalid_file` | Não foi possível ler o arquivo. |
+| JSON do modelo não valida no schema | 422 | `parse_error` | Não foi possível extrair os dados do comprovante. |
+| Erro inesperado | 400 | `invalid_file` | Não foi possível ler o arquivo. |
 
 ### Comportamento
 
@@ -38,10 +68,10 @@ def extract_receipt(arquivo: ReceiptInput) -> dict:
 |---------|---------------|
 | Arquivo PDF válido | Converte para imagem, processa, retorna BankReceipt |
 | Arquivo imagem válido | Processa imagem, retorna BankReceipt |
-| Arquivo inválido/corrompido | Retorna `{"erro": "..."}` |
-| Formato não suportado | Retorna `{"erro": "Formato não suportado. Aceito: PDF, PNG, JPG"}` |
-| Erro de API Groq | Retorna `{"erro": "Serviço de IA indisponível. Tente novamente."}` |
-| Comprovante não identificado | Retorna `{"erro": "Não foi possível extrair dados. Verifique o comprovante."}` |
+| Arquivo inválido/corrompido | Retorna error dict com status 400 |
+| Formato não suportado | Retorna error dict com status 415 |
+| Todos os provedores falham | Retorna error dict com status 502 |
+| Comprovante não identificado | Retorna error dict com status 422 |
 
 ### Exemplo de Uso no Django
 

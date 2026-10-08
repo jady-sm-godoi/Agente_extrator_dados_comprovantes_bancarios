@@ -5,10 +5,12 @@ import pytest
 from bank_receipt_extractor.agent import (
     _build_agent,
     _parse_model_list,
+    _run_agent,
     extract_from_image,
     get_agent,
     reset_agent,
 )
+from bank_receipt_extractor.errors import ProviderError
 from bank_receipt_extractor.schemas import BankReceipt
 
 
@@ -104,9 +106,25 @@ def test_extract_from_image_no_content(monkeypatch):
     mock_agent.model.id = "deepseek-flash"
     mock_agent.run.return_value.content = None
     with patch("bank_receipt_extractor.agent._build_agent", return_value=mock_agent), pytest.raises(
-        RuntimeError, match="Todos os modelos falharam"
+        ProviderError, match="Serviço de extração indisponível"
     ):
         extract_from_image(b"fake-image-bytes")
+
+
+def test_run_agent_raises_on_api_error_str(monkeypatch):
+    mock_agent = MagicMock()
+    mock_agent.run.return_value.content = (
+        "Authentication Fails, Your api key: ****af52 is invalid"
+    )
+    with pytest.raises(ValueError, match="Authentication"):
+        _run_agent(mock_agent, b"fake-image-bytes")
+
+
+def test_run_agent_raises_unexpected_str(monkeypatch):
+    mock_agent = MagicMock()
+    mock_agent.run.return_value.content = "texto livre"
+    with pytest.raises(ValueError, match="Resposta inesperada"):
+        _run_agent(mock_agent, b"fake-image-bytes")
 
 
 def test_extract_from_image_invalid_content_type(monkeypatch):
@@ -116,7 +134,7 @@ def test_extract_from_image_invalid_content_type(monkeypatch):
     mock_agent.model.id = "deepseek-flash"
     mock_agent.run.return_value.content = ["not", "valid"]
     with patch("bank_receipt_extractor.agent._build_agent", return_value=mock_agent), pytest.raises(
-        RuntimeError, match="Todos os modelos falharam"
+        ProviderError
     ):
         extract_from_image(b"fake-image-bytes")
 
@@ -128,7 +146,7 @@ def test_extract_from_image_invalid_dict(monkeypatch):
     mock_agent.model.id = "deepseek-flash"
     mock_agent.run.return_value.content = {"valor": "invalido"}
     with patch("bank_receipt_extractor.agent._build_agent", return_value=mock_agent), pytest.raises(
-        RuntimeError, match="Todos os modelos falharam"
+        ProviderError
     ):
         extract_from_image(b"fake-image-bytes")
 
@@ -225,6 +243,6 @@ def test_extract_from_image_all_fail(monkeypatch):
     failing.model.id = "deepseek-flash"
     failing.run.side_effect = RuntimeError("boom")
     with patch("bank_receipt_extractor.agent._build_agent", return_value=failing), pytest.raises(
-        RuntimeError, match="deepseek-flash: boom"
+        ProviderError
     ):
         extract_from_image(b"fake-image-bytes")
