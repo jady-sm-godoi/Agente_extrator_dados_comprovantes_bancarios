@@ -56,7 +56,8 @@ class ExtractionResult:
 def _parse_model_list() -> list[str]:
     """Lê MODEL_FALLBACK_LIST (provedor:modelo, separado por vírgulas).
 
-    Retorna a lista padrão se a env var não estiver definida.
+    Retorna a lista padrão se a env var não estiver definida. Specs duplicadas
+    (comparação case-insensitive) são removidas preservando a ordem.
     """
     raw = os.getenv("MODEL_FALLBACK_LIST")
     if not raw:
@@ -64,7 +65,14 @@ def _parse_model_list() -> list[str]:
     specs = [item.strip() for item in raw.split(",") if item.strip()]
     if not specs:
         return list(DEFAULT_MODEL_LIST)
-    return specs
+    unique: list[str] = []
+    seen: set[str] = set()
+    for spec in specs:
+        key = spec.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(spec)
+    return unique
 
 
 def _build_agent(spec: str) -> Agent:
@@ -174,7 +182,8 @@ def extract_from_image(
 
     Em caso de sucesso com fallback, `ExtractionResult.provedores_falhos` traz
     as specs dos provedores que falharam e `motivo` a categoria da primeira
-    falha. O detalhe técnico fica apenas no log do servidor.
+    falha. Recuperação no mesmo modelo (retry) não é reportada como fallback.
+    O detalhe técnico fica apenas no log do servidor.
     """
     global _working_agent
     if force_retry:
@@ -192,7 +201,8 @@ def extract_from_image(
             cached = _working_agent
             model = cached.model
             assert model is not None
-            spec_name = f"{model.provider}:{model.id}"
+            # Provider em minúsculas para alinhar com o formato de MODEL_FALLBACK_LIST.
+            spec_name = f"{str(model.provider).lower()}:{model.id}"
             provedores_falhos.append(spec_name)
             falhas_tecnicas.append(f"{spec_name}: {e}")
             primeira_falha = primeira_falha or e
@@ -206,15 +216,22 @@ def extract_from_image(
             agent = _build_agent(spec)
             receipt = _run_agent(agent, image_bytes)
             _working_agent = agent
+            # Recuperação no mesmo modelo não é fallback: a spec vencedora sai
+            # do relatório antes de montar o ExtractionResult. `fallback` só
+            # aparece quando o modelo que respondeu difere dos que falharam.
+            falhas_anteriores = [
+                p for p in provedores_falhos if p.casefold() != spec.casefold()
+            ]
             return ExtractionResult(
                 receipt,
-                provedores_falhos=provedores_falhos,
+                provedores_falhos=falhas_anteriores,
                 motivo=_classificar_falha(primeira_falha)
-                if primeira_falha is not None
+                if falhas_anteriores and primeira_falha is not None
                 else "",
             )
         except Exception as e:
-            provedores_falhos.append(spec)
+            if spec.casefold() not in {p.casefold() for p in provedores_falhos}:
+                provedores_falhos.append(spec)
             falhas_tecnicas.append(f"{spec}: {e}")
             primeira_falha = primeira_falha or e
             logger.warning("Falha com modelo %s: %s", spec, e, exc_info=True)

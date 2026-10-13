@@ -43,6 +43,17 @@ def test_parse_model_list_blank(monkeypatch):
     assert _parse_model_list() == ["deepseek:deepseek-flash"]
 
 
+def test_parse_model_list_dedupes_case_insensitive(monkeypatch):
+    monkeypatch.setenv(
+        "MODEL_FALLBACK_LIST",
+        "deepseek:deepseek-flash,DEEPSEEK:deepseek-flash,groq:qwen/qwen3.8-27b",
+    )
+    assert _parse_model_list() == [
+        "deepseek:deepseek-flash",
+        "groq:qwen/qwen3.8-27b",
+    ]
+
+
 def test_build_agent_deepseek_default_provider(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     agent = _build_agent("deepseek-flash")
@@ -220,27 +231,66 @@ def test_extract_from_image_force_retry_resets_cache(sample_bank_receipt, monkey
     assert agent_mod._working_agent is mock_agent
 
 
-def test_extract_from_image_cached_fails_then_fallback(sample_bank_receipt, monkeypatch):
+def test_extract_from_image_cached_fails_recovered_same_provider(
+    sample_bank_receipt, monkeypatch
+):
+    """Cache falha, mas o mesmo modelo responde no retry: não é fallback."""
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("MODEL_FALLBACK_LIST", "DeepSeek:deepseek-flash")
     import bank_receipt_extractor.agent as agent_mod
 
-    monkeypatch.setattr(agent_mod, "_working_agent", None)
     cached = MagicMock()
     cached.model.provider = "DeepSeek"
     cached.model.id = "deepseek-flash"
-    cached.run.side_effect = RuntimeError("boom cadeado")
-    fallback = MagicMock()
-    fallback.model.provider = "DeepSeek"
-    fallback.model.id = "deepseek-flash"
-    fallback.run.return_value.content = sample_bank_receipt
+    cached.run.side_effect = RuntimeError("boom transitório")
+    recovered = MagicMock()
+    recovered.model.provider = "DeepSeek"
+    recovered.model.id = "deepseek-flash"
+    recovered.run.return_value.content = sample_bank_receipt
 
     monkeypatch.setattr(agent_mod, "_working_agent", cached)
-    with patch("bank_receipt_extractor.agent._build_agent", return_value=fallback):
+    with patch("bank_receipt_extractor.agent._build_agent", return_value=recovered):
         result = extract_from_image(b"fake-image-bytes")
     assert result.receipt == sample_bank_receipt
-    assert result.provedores_falhos == ["DeepSeek:deepseek-flash"]
+    assert result.provedores_falhos == []
+    assert result.motivo == ""
+    assert agent_mod._working_agent is recovered
+
+
+def test_extract_from_image_cached_fails_then_real_fallback(
+    sample_bank_receipt, monkeypatch
+):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    monkeypatch.setenv(
+        "MODEL_FALLBACK_LIST",
+        "deepseek:deepseek-flash,groq:qwen/qwen3.8-27b",
+    )
+    import bank_receipt_extractor.agent as agent_mod
+
+    cached = MagicMock()
+    cached.model.provider = "DeepSeek"
+    cached.model.id = "deepseek-flash"
+    cached.run.side_effect = RuntimeError("boom")
+    failing = MagicMock()
+    failing.model.provider = "DeepSeek"
+    failing.model.id = "deepseek-flash"
+    failing.run.side_effect = RuntimeError("boom de novo")
+    working = MagicMock()
+    working.model.provider = "Groq"
+    working.model.id = "qwen/qwen3.8-27b"
+    working.run.return_value.content = sample_bank_receipt
+
+    def fake_build(spec):
+        return failing if "deepseek" in spec else working
+
+    monkeypatch.setattr(agent_mod, "_working_agent", cached)
+    with patch("bank_receipt_extractor.agent._build_agent", side_effect=fake_build):
+        result = extract_from_image(b"fake-image-bytes")
+    assert result.receipt == sample_bank_receipt
+    assert result.provedores_falhos == ["deepseek:deepseek-flash"]
     assert result.motivo == "unknown"
-    assert agent_mod._working_agent is fallback
+    assert agent_mod._working_agent is working
 
 
 def test_extract_from_image_all_fail(monkeypatch):
