@@ -1,6 +1,8 @@
 from io import BytesIO
 from unittest.mock import patch
 
+from bank_receipt_extractor.agent import ExtractionResult
+from bank_receipt_extractor.errors import ProviderError, erro_para_status
 from bank_receipt_extractor.integration import extract_receipt
 
 
@@ -60,22 +62,25 @@ def test_extract_receipt_serialization(sample_bank_receipt):
         mock_read.return_value = b"fake-bytes"
         mock_type.return_value = "image"
         mock_processor.return_value = b"processed-image-bytes"
-        mock_extract.return_value = sample_bank_receipt
+        mock_extract.return_value = ExtractionResult(sample_bank_receipt)
         result = extract_receipt("dummy.jpg")
     assert isinstance(result["valor"], float)
     assert isinstance(result["data_transacao"], str)
     assert result["valor"] == 1500.00
     assert result["data_transacao"] == "2024-03-15"
+    assert "fallback" not in result
 
 
 def test_extract_receipt_agent_error(valid_jpeg_bytes):
     with patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract:
-        mock_extract.side_effect = ValueError("Falha simulada no Groq")
+        mock_extract.side_effect = ProviderError(causa="Provedor Groq caiu")
         buf = BytesIO(valid_jpeg_bytes)
         buf.name = "test.jpg"
         result = extract_receipt(buf)
         assert "erro" in result
-        assert "Falha simulada" in result["erro"]
+        assert result["erro"] == "Serviço de extração indisponível. Tente novamente."
+        assert result["status"] == 502
+        assert result["motivo"] == "provider_error"
 
 
 def test_extract_receipt_file_too_large_bytesio(monkeypatch):
@@ -123,7 +128,7 @@ def test_extract_receipt_file_too_large_path(monkeypatch):
 def test_extract_receipt_logs_error(caplog, valid_jpeg_bytes):
     caplog.set_level("WARNING")
     with patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract:
-        mock_extract.side_effect = ValueError("Falha simulada")
+        mock_extract.side_effect = ProviderError(causa="Falha no provedor")
         buf = BytesIO(valid_jpeg_bytes)
         buf.name = "test.jpg"
         extract_receipt(buf)
@@ -131,10 +136,89 @@ def test_extract_receipt_logs_error(caplog, valid_jpeg_bytes):
     assert "Falha na extração" in caplog.text
 
 
+def test_extract_receipt_success_with_fallback(sample_bank_receipt):
+    result_data = ExtractionResult(
+        sample_bank_receipt,
+        provedores_falhos=["deepseek:deepseek-flash"],
+        motivo="authentication",
+    )
+    with (
+        patch("bank_receipt_extractor.integration._read_file") as mock_read,
+        patch("bank_receipt_extractor.integration._identify_type") as mock_type,
+        patch("bank_receipt_extractor.processors.image_processor.ImageProcessor.process") as mock_processor,
+        patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract,
+    ):
+        mock_read.return_value = b"fake-bytes"
+        mock_type.return_value = "image"
+        mock_processor.return_value = b"processed-image-bytes"
+        mock_extract.return_value = result_data
+        result = extract_receipt("dummy.jpg")
+    assert "erro" not in result
+    assert result["tipo"] == "PIX"
+    assert result["fallback"] == {
+        "usado": True,
+        "motivo": "authentication",
+        "provedores_falhos": ["deepseek:deepseek-flash"],
+    }
+
+
+def test_extract_receipt_fallback_nao_vaza_chave(sample_bank_receipt):
+    import json
+
+    result_data = ExtractionResult(
+        sample_bank_receipt,
+        provedores_falhos=["groq:qwen/qwen3.8-27b"],
+        motivo="authentication",
+    )
+    with (
+        patch("bank_receipt_extractor.integration._read_file") as mock_read,
+        patch("bank_receipt_extractor.integration._identify_type") as mock_type,
+        patch("bank_receipt_extractor.processors.image_processor.ImageProcessor.process") as mock_processor,
+        patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract,
+    ):
+        mock_read.return_value = b"fake-bytes"
+        mock_type.return_value = "image"
+        mock_processor.return_value = b"processed-image-bytes"
+        mock_extract.return_value = result_data
+        result = extract_receipt("dummy.jpg")
+    serialized = json.dumps(result, ensure_ascii=False)
+    assert "af52" not in serialized
+    assert "request_id" not in serialized
+    assert "Authentication" not in serialized
+
+
 def test_extract_receipt_unsupported_file_type():
     result = extract_receipt(42)
     assert "erro" in result
-    assert "não suportado" in result["erro"]
+    assert result["erro"] == "Não foi possível ler o arquivo."
+    assert result["status"] == 400
+    assert result["motivo"] == "invalid_file"
+
+
+def test_erro_para_status_provider_error():
+    assert erro_para_status({"status": 502}) == 502
+
+
+def test_erro_para_status_default_500():
+    assert erro_para_status({"erro": "x"}) == 500
+
+
+def test_erro_para_status_without_arg_default():
+    assert erro_para_status({}) == 500
+
+
+def test_erro_resposta_nao_vaza_causa_tecnica(caplog, valid_jpeg_bytes):
+    caplog.set_level("ERROR")
+    with patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract:
+        mock_extract.side_effect = ProviderError(
+            causa="Authentication Fails, Your api key: ****af52 is invalid"
+        )
+        buf = BytesIO(valid_jpeg_bytes)
+        buf.name = "test.jpg"
+        result = extract_receipt(buf)
+    assert "Authentication" not in result["erro"]
+    assert result["erro"] == "Serviço de extração indisponível. Tente novamente."
+    assert "Authentication" in caplog.text
 
 
 def test_extract_receipt_bytesio_without_name(valid_jpeg_bytes, mock_groq_agent):
@@ -151,7 +235,8 @@ def test_extract_receipt_unexpected_exception():
         mock_read.side_effect = RuntimeError("explodiu")
         result = extract_receipt("dummy.jpg")
     assert "erro" in result
-    assert "inesperado" in result["erro"]
+    assert "Não foi possível ler o arquivo." in result["erro"]
+    assert result["status"] == 400
 
 
 def test_extract_receipt_pdf_flow(sample_bank_receipt):
@@ -164,9 +249,10 @@ def test_extract_receipt_pdf_flow(sample_bank_receipt):
         mock_read.return_value = b"%PDF-fake-bytes"
         mock_type.return_value = "pdf"
         mock_pdf.return_value = b"fake-image-bytes"
-        mock_extract.return_value = sample_bank_receipt
+        mock_extract.return_value = ExtractionResult(sample_bank_receipt)
         result = extract_receipt("receipt.pdf")
     assert "erro" not in result
+    assert "fallback" not in result
     mock_pdf.assert_called_once()
     mock_extract.assert_called_once()
 
@@ -181,8 +267,9 @@ def test_extract_receipt_image_flow(sample_bank_receipt):
         mock_read.return_value = b"fake-image-bytes"
         mock_type.return_value = "image"
         mock_img.return_value = b"processed-image-bytes"
-        mock_extract.return_value = sample_bank_receipt
+        mock_extract.return_value = ExtractionResult(sample_bank_receipt)
         result = extract_receipt("receipt.jpg")
     assert "erro" not in result
+    assert "fallback" not in result
     mock_img.assert_called_once()
     mock_extract.assert_called_once()

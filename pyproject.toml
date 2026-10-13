@@ -5,14 +5,15 @@ build-backend = "hatchling.build"
 [project]
 name = "bank-receipt-extractor"
 dynamic = ["version"]
-description = "Automated Brazilian bank receipt data extraction (PIX, TED, DOC) using Agno and Groq"
+description = "Automated Brazilian bank receipt data extraction (PIX, TED, DOC) using Agno and DeepSeek (Groq fallback)"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
   { name = "Jady", email = "jady@example.com" },
 ]
 classifiers = [
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
@@ -22,6 +23,7 @@ classifiers = [
 dependencies = [
   "agno>=0.5.0",
   "groq>=0.3.0",
+  "openai>=1.0.0",
   "pdf2image>=1.17.0",
   "Pillow>=10.0.0",
   "pydantic>=2.0.0",

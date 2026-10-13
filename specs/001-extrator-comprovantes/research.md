@@ -1,6 +1,10 @@
 # Research: Módulo Extrator de Comprovantes Bancários
 
-## Decisiones Técnicas
+> **Nota de revisão (2026-10-13)**: Decisões sincronizadas com a implementação v0.2.0.
+> O provedor primário passou a ser DeepSeek (`deepseek-flash`) com fallback Groq
+> (Emenda E001), e o runtime mínimo é Python ≥3.12.
+
+## Decisões Técnicas
 
 ### 1. Framework de Agentes: Agno
 
@@ -13,16 +17,17 @@
 - **LlamaIndex**: Focado em RAG, não é o ideal para extração direta de imagem
 - **Chamada direta à API Groq**: Possível, mas perderia o output estruturado e gerenciamento de contexto do Agno
 
-### 2. Provedor de Visão: Groq (Llama 3.2 90B Vision)
+### 2. Provedor de Visão: DeepSeek (deepseek-flash) com fallback Groq
 
-**Decision**: Groq via `agno.models.groq.Groq`
+**Decision**: `agno.models.deepseek.DeepSeek` com `deepseek-flash` como primário; fallback ordenado e configurável via `MODEL_FALLBACK_LIST` (`agno.models.groq.Groq` como alternativa)
 
-**Rationale**: Inferência extremamente rápida (tokens/s muito superior a concorrentes), modelo Llama 3.2 90B Vision com boa capacidade de extração de texto em imagens, API compatível com OpenAI.
+**Rationale**: O `deepseek-flash` é o modelo de visão ativo na DeepSeek e tem custo ~6x menor por extração que a alternativa na Groq (Emenda E001). O fallback configurável mantém a operação resiliente à indisponibilidade de um provedor.
 
 **Alternatives considered**:
+- **Groq Llama 3.2 90B Vision**: modelo descontinuado na Groq — motivo da Emenda E001
 - **OpenAI GPT-4o**: Mais caro, mesmo sendo excelente para visão
 - **Google Gemini**: Bom, mas requer SDK separado
-- **Claude 3.5 Sonnet**: Excelente para visão, porém mais lento que Groq
+- **Claude 3.5 Sonnet**: Excelente para visão, porém mais lento que as alternativas
 
 ### 3. Conversão PDF → Imagem: pdf2image + poppler-utils
 
@@ -53,21 +58,21 @@
 
 ### 6. Formatação de Moeda Brasileira
 
-**Decision**: Parsing manual com `locale` ou regex
+**Decision**: Parsing com regex em `utils.parse_brazilian_decimal` (implementado)
 
-**Rationale**: O formato brasileiro (R$ 1.234,56) não é suportado nativamente pelo Python Decimal. Será necessário um parser que:
-- Remova o símbolo R$
-- Troque `.` por ` ` (separador de milhar)
-- Troque `,` por `.` (separador decimal)
-- Converta para Decimal
+**Rationale**: O formato brasileiro (R$ 1.234,56) não é suportado nativamente pelo Python Decimal. O parser:
+- Remove o símbolo R$
+- Remove o separador de milhar (`.`)
+- Troca `,` por `.` (separador decimal)
+- Converte para Decimal
 
-### 7. Gerenciamento de API Key
+### 7. Gerenciamento de API Keys
 
-**Decision**: `python-dotenv` + `.env`
+**Decision**: `python-dotenv` + `.env`, com `DEEPSEEK_API_KEY` (primária), `GROQ_API_KEY` (opcional, fallback) e `MODEL_FALLBACK_LIST` (opcional)
 
-**Rationale**: Padrão simples e seguro. A chave `GROQ_API_KEY` será lida de `.env` e carregada com `load_dotenv()`. O `.env` está no `.gitignore`.
+**Rationale**: Padrão simples e seguro. As chaves são lidas de `.env` via `load_dotenv()`, carregado pela aplicação hospedeira; o `.env` está no `.gitignore`. Nenhuma chave é hardcoded (Princípio II).
 
 ## Dependências do Sistema
 
 - **poppler-utils**: Necessário para pdf2image. Instalar via `apt install poppler-utils` ou `brew install poppler`
-- **Python ≥ 3.13**: Conforme `.python-version`
+- **Python ≥ 3.12**: Conforme `pyproject.toml` e `.python-version`

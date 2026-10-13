@@ -53,7 +53,3 @@ def detect_mime_type(raw_bytes: bytes) -> str:
     if raw_bytes[:8] == _MAGIC_PNG:
         return "image"
     return "unknown"
-
-
-def format_error(message: str) -> dict:
-    return {"erro": message}

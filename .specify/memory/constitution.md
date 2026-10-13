@@ -1,23 +1,24 @@
 <!--
   Sync Impact Report
-  Version: 0.0.0 → 1.0.0 (initial ratification)
+  Version: 1.1.0 → 1.2.0
   Principles created: I. Modularidade, II. Segurança, III. Tipagem Forte, IV. Testabilidade, V. Simplicidade
-  Templates requiring updates: plan-template.md (✅ updated), spec-template.md (✅ updated), tasks-template.md (✅ updated)
+  Emendas: E001 (modelo de visão DeepSeek + fallback Groq), E002 (nomenclatura e runtime v0.2.0)
+  Templates requiring updates: none
 -->
 
 # Agente Extrator de Comprovantes Bancários — Constituição
 
-**Versão**: 1.0.0 | **Ratificada**: 2026-07-24 | **Última Emenda**: 2026-07-24
+**Versão**: 1.2.0 | **Ratificada**: 2026-07-24 | **Última Emenda**: 2026-10-13
 
 ## Princípios Fundamentais
 
 ### I. Modularidade
 
-O módulo de extração (`agente_extrator/`) deve ser um pacote Python independente, sem acoplamento com Django. A integração com Django deve ocorrer exclusivamente via uma função bridge em `integration.py`. O pacote deve poder ser testado e executado de forma autônoma.
+O módulo de extração (`bank_receipt_extractor/`) deve ser um pacote Python independente, sem acoplamento com Django. A integração com Django deve ocorrer exclusivamente via uma função bridge em `integration.py`. O pacote deve poder ser testado e executado de forma autônoma.
 
 ### II. Segurança
 
-Nenhuma chave de API (Groq, OpenAI, etc.) pode ser hardcoded no código fonte. Todas as credenciais devem ser carregadas de variáveis de ambiente via `python-dotenv`. Arquivos temporários criados durante o processamento (PDF convertido para imagem, etc.) devem ser removidos após o uso. O arquivo `.env` nunca deve ser commitado.
+Nenhuma chave de API (Groq, DeepSeek, OpenAI, etc.) pode ser hardcoded no código fonte. Todas as credenciais devem ser carregadas de variáveis de ambiente via `python-dotenv`. Arquivos temporários criados durante o processamento (PDF convertido para imagem, etc.) devem ser removidos após o uso. O arquivo `.env` nunca deve ser commitado. A escolha de provedor de IA não é restrita por localização geográfica dos servidores; a avaliação é exclusivamente funcional (qualidade, latência, custo).
 
 ### III. Tipagem Forte
 
@@ -25,7 +26,7 @@ Todas as estruturas de dados de entrada e saída devem ser definidas com Pydanti
 
 ### IV. Testabilidade
 
-Cada processador (PDF, imagem) deve ser testável de forma independente. O schema de saída deve ter validações claras. A função bridge `extrair_comprovante()` deve aceitar múltiplos formatos de entrada (path, file-like, UploadedFile) e retornar sempre um dict.
+Cada processador (PDF, imagem) deve ser testável de forma independente. O schema de saída deve ter validações claras. A função bridge `extract_receipt()` deve aceitar múltiplos formatos de entrada (path, file-like, UploadedFile) e retornar sempre um dict.
 
 ### V. Simplicidade (YAGNI)
 
@@ -35,9 +36,9 @@ Apenas os campos solicitados devem ser extraídos: valor, data_transacao, numero
 
 | Camada | Tecnologia | Versão |
 |--------|-----------|--------|
-| Runtime | Python | ≥3.13 |
+| Runtime | Python | ≥3.12 |
 | Framework de Agentes | Agno | latest |
-| Modelo de Visão | Groq (Llama 3.2 90B Vision) | via API |
+| Modelo de Visão | DeepSeek (`deepseek-flash`) + fallback Groq (`qwen/qwen3.8-27b`) | via API |
 | PDF → Imagem | pdf2image + poppler-utils | latest |
 | Imagem | Pillow | latest |
 | Schemas | Pydantic | v2 |
@@ -57,7 +58,7 @@ Apenas os campos solicitados devem ser extraídos: valor, data_transacao, numero
 - Código deve passar em `ruff` (lint) e `mypy` (typecheck)
 - Schemas Pydantic devem ter testes de validação (valores inválidos, campos ausentes)
 - Nenhum `.env` ou chave de API no repositório
-- A função `extrair_comprovante()` deve tratar erros gracefulmente (retornar dict com chave `erro`)
+- A função `extract_receipt()` deve tratar erros gracefulmente (retornar dict com chave `erro`)
 
 ## Governança
 
@@ -67,3 +68,21 @@ Apenas os campos solicitados devem ser extraídos: valor, data_transacao, numero
   - PATCH: Correções, refinamentos de prompt, melhorias internas
 - **Emendas**: Propostas devem ser documentadas com justificativa e aprovadas antes da implementação
 - **Conformidade**: Todo PR deve ser revisado contra estes princípios antes de merge
+
+## Registro de Emendas
+
+### E001 — Troca do modelo de visão para DeepSeek com fallback Groq (2026-10-08)
+
+**Justificativa**: O modelo anterior (Groq Llama 3.2 90B Vision) foi descontinuado na Groq. O `deepseek-flash` é o único modelo de visão ativo na DeepSeek e oferece custo ~6x menor por extração que o `qwen/qwen3.8-27b` da Groq.
+
+**Decisão**: `deepseek-flash` como modelo primário; lista de fallback `MODEL_FALLBACK_LIST` permite alternância ordenada entre provedores via variável de ambiente (padrão: `deepseek:deepseek-flash`). A lista é opcional — quando ausente, usa somente o padrão.
+
+**Pontos alterados**: Stack Tecnológica (modelo de visão), Princípio II (esclarecimento sobre provedores). Não altera o schema de saída `BankReceipt` (compatível com v1.0.0).
+
+### E002 — Sincronização de nomenclatura e runtime com a implementação v0.2.0 (2026-10-13)
+
+**Justificativa**: O código evoluiu além do texto original: o pacote foi renomeado para `bank_receipt_extractor` (commit f6172ea), a função bridge para `extract_receipt()` (nomenclatura implementada desde a criação do pacote) e o runtime mínimo foi relaxado para Python ≥3.12 (commit 27851bb). A constituição ainda referenciava `agente_extrator/`, `extrair_comprovante()` e Python ≥3.13.
+
+**Decisão**: Atualizar os Princípios I e IV, a Stack Tecnológica e os Quality Gates para refletir a implementação v0.2.0. Mudança exclusivamente documental — nenhum impacto de comportamento ou schema.
+
+**Pontos alterados**: Princípio I (nome do pacote), Princípio IV (nome da função bridge), Stack Tecnológica (Python ≥3.12), Quality Gates (nome da função). Não altera o schema de saída `BankReceipt`.

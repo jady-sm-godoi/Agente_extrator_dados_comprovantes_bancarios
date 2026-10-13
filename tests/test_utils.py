@@ -6,7 +6,6 @@ import pytest
 from bank_receipt_extractor.utils import (
     detect_file_type,
     detect_mime_type,
-    format_error,
     parse_brazilian_date,
     parse_brazilian_decimal,
 )
@@ -120,11 +119,3 @@ class TestDetectMimeType:
 
     def test_empty_bytes(self):
         assert detect_mime_type(b"") == "unknown"
-
-
-class TestFormatError:
-    def test_format_error_message(self):
-        assert format_error("Algo deu errado") == {"erro": "Algo deu errado"}
-
-    def test_format_error_empty(self):
-        assert format_error("") == {"erro": ""}

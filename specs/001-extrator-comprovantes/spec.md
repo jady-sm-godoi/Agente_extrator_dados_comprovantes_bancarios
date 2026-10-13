@@ -4,7 +4,11 @@
 
 **Created**: 2026-07-24
 
-**Status**: Draft
+**Status**: Implemented (v0.2.0)
+
+> **Nota de revisão (2026-10-13)**: Documento sincronizado com a implementação v0.2.0 —
+> pacote `bank_receipt_extractor`, função `extract_receipt()`, modelo de visão DeepSeek
+> (`deepseek-flash`) como primário com fallback Groq (conforme Emenda E001).
 
 **Input**: User description: "Módulo de extração automatizada de dados de comprovantes de transferência bancária (PIX, TED, DOC) usando Agno e Groq, que recebe PDF ou imagem e retorna JSON com valor, data, número de controle e banco de origem"
 
@@ -37,25 +41,25 @@ Um usuário faz upload de um arquivo PDF de um comprovante bancário e o sistema
 **Acceptance Scenarios**:
 
 1. **Given** um PDF de comprovante PIX de 1 página, **When** o processador PDF converte para imagem e extrai, **Then** retorna JSON completo
-2. **Given** um PDF de comprovante DOC de múltiplas páginas, **When** o processador processa cada página, **Then** retorna JSON baseado na primeira página (onde estão os dados principais)
+2. **Given** um PDF de comprovante DOC de múltiplas páginas, **When** o processador converte o PDF para imagem, **Then** usa a primeira página (onde estão os dados principais) e retorna o JSON
 3. **Given** um PDF inválido ou corrompido, **When** o processador tenta abrir, **Then** retorna erro amigável
 
 ---
 
 ### User Story 3 - Integração com Django via função bridge (Priority: P3)
 
-Um desenvolvedor Django importa a função `extrair_comprovante()` e a utiliza no fluxo de formulário de inscrição em evento, recebendo um dict Python pronto para salvar no model.
+Um desenvolvedor Django importa a função `extract_receipt()` e a utiliza no fluxo de formulário de inscrição em evento, recebendo um dict Python pronto para salvar no model.
 
 **Why this priority**: A integração é necessária para o contexto real de uso, mas a lógica central de extração (US1, US2) deve estar madura primeiro.
 
-**Independent Test**: Pode ser testado chamando `extrair_comprovante()` com um `BytesIO` ou `UploadedFile` simulado e verificando o dict de retorno.
+**Independent Test**: Pode ser testado chamando `extract_receipt()` com um `BytesIO` ou `UploadedFile` simulado e verificando o dict de retorno.
 
 **Acceptance Scenarios**:
 
-1. **Given** um caminho de arquivo (str), **When** `extrair_comprovante("/path/to/file.pdf")` é chamado, **Then** retorna dict com dados extraídos
-2. **Given** um objeto `BytesIO`, **When** `extrair_comprovante(io.BytesIO(...))` é chamado, **Then** retorna dict com dados extraídos
-3. **Given** um arquivo inválido, **When** `extrair_comprovante(...)` é chamado, **Then** retorna `{"erro": "mensagem descritiva"}`
-4. **Given** que a API Groq está indisponível, **When** a extração é chamada, **Then** retorna `{"erro": "Serviço de IA indisponível"}`
+1. **Given** um caminho de arquivo (str), **When** `extract_receipt("/path/to/file.pdf")` é chamado, **Then** retorna dict com dados extraídos
+2. **Given** um objeto `BytesIO`, **When** `extract_receipt(io.BytesIO(...))` é chamado, **Then** retorna dict com dados extraídos
+3. **Given** um arquivo inválido, **When** `extract_receipt(...)` é chamado, **Then** retorna `{"erro": "mensagem descritiva", "status": 400, "motivo": "invalid_file"}`
+4. **Given** que todos os provedores de IA estão indisponíveis, **When** a extração é chamada, **Then** retorna `{"erro": "Serviço de extração indisponível. Tente novamente.", "status": 502, "motivo": "provider_error"}`
 
 ### Edge Cases
 
@@ -79,10 +83,10 @@ Um desenvolvedor Django importa a função `extrair_comprovante()` e a utiliza n
 - **FR-008**: Sistema MUST extrair campo `banco_destino` (str | null) se presente
 - **FR-009**: Sistema MUST extrair campo `favorecido` (str | null) se presente
 - **FR-010**: Sistema MUST retornar um objeto JSON validado contra schema Pydantic
-- **FR-011**: Sistema MUST usar o modelo Llama 3.2 90B Vision da Groq para extração via Agno
-- **FR-012**: Sistema MUST expor função `extrair_comprovante()` que aceita str | Path | BytesIO | UploadedFile
+- **FR-011**: Sistema MUST usar o modelo de visão DeepSeek (`deepseek-flash`) como primário para extração via Agno, com fallback ordenado e configurável via `MODEL_FALLBACK_LIST` (provedores suportados: `deepseek`, `groq`)
+- **FR-012**: Sistema MUST expor função `extract_receipt()` que aceita str | Path | BytesIO | UploadedFile
 - **FR-013**: Sistema MUST limpar arquivos temporários após o processamento
-- **FR-014**: Sistema MUST tratar erros gracefulmente retornando `{"erro": "mensagem"}`
+- **FR-014**: Sistema MUST tratar erros gracefulmente retornando dict com `erro` (mensagem neutra), `status` (HTTP) e `motivo` (classificador)
 
 ### Key Entities
 
@@ -93,7 +97,7 @@ Um desenvolvedor Django importa a função `extrair_comprovante()` e a utiliza n
 
 ### Measurable Outcomes
 
-- **SC-001**: Extração de comprovante PIX leva menos de 10 segundos (incluindo processamento + API Groq)
+- **SC-001**: Extração de comprovante PIX leva menos de 10 segundos (incluindo processamento + API de visão)
 - **SC-002**: Precisão de extração ≥ 90% para comprovantes com boa qualidade de imagem
 - **SC-003**: Taxa de erro (retorno com campo `erro`) < 5% para comprovantes válidos
 - **SC-004**: PDFs de até 5 páginas são processados em menos de 15 segundos
@@ -101,9 +105,9 @@ Um desenvolvedor Django importa a função `extrair_comprovante()` e a utiliza n
 
 ## Assumptions
 
-- Usuários têm conexão com internet estável para chamar API Groq
+- Usuários têm conexão com internet estável para chamar a API de visão
 - Comprovantes seguem o padrão brasileiro (formato de moeda R$ 1.234,56, data DD/MM/AAAA)
-- O modelo Llama 3.2 90B Vision da Groq tem capacidade suficiente para extrair textos de comprovantes em português
+- O modelo DeepSeek (`deepseek-flash`) tem capacidade suficiente para extrair textos de comprovantes em português
 - pdf2image + poppler-utils estão disponíveis no ambiente de execução
-- A API key da Groq será fornecida via variável de ambiente `GROQ_API_KEY`
+- A API key da DeepSeek será fornecida via variável de ambiente `DEEPSEEK_API_KEY`; `GROQ_API_KEY` é opcional (usada apenas se Groq estiver no `MODEL_FALLBACK_LIST`)
 - O Django estará em um ambiente separado; o módulo não depende de Django

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bank_receipt_extractor.agent import ExtractionResult
 from bank_receipt_extractor.schemas import BankReceipt
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -56,7 +57,7 @@ def mock_groq_agent(sample_bank_receipt: BankReceipt) -> Iterator[MagicMock]:
     mock_agent = MagicMock()
     mock_agent.run.return_value.content = sample_bank_receipt
     with patch("bank_receipt_extractor.integration.extract_from_image") as mock_extract:
-        mock_extract.return_value = sample_bank_receipt
+        mock_extract.return_value = ExtractionResult(sample_bank_receipt)
         yield mock_extract
 
 
