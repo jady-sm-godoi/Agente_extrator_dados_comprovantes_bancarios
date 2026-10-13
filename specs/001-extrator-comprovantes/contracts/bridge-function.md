@@ -3,7 +3,7 @@
 ## Função Bridge para Django
 
 ```python
-def extract_receipt(arquivo: ReceiptInput) -> dict:
+def extract_receipt(arquivo: ReceiptInput, force_retry: bool = False) -> dict:
     ...
 ```
 
@@ -14,13 +14,13 @@ def extract_receipt(arquivo: ReceiptInput) -> dict:
 
 ```python
 {
-    "valor": Decimal("1234.56"),        # Decimal
-    "data_transacao": date(2026, 7, 24), # date
-    "numero_controle": "E4B3C2A1",      # str | None
-    "banco_origem": "Itaú",             # str | None
-    "tipo": "PIX",                      # Literal["PIX","TED","DOC","DESCONHECIDO"]
-    "banco_destino": "Nubank",          # str | None
-    "favorecido": "João Silva",         # str | None
+    "valor": 1234.56,                    # float (JSON-serializável)
+    "data_transacao": "2026-07-24",      # str ISO (JSON-serializável)
+    "numero_controle": "E4B3C2A1",       # str | None
+    "banco_origem": "Itaú",              # str | None
+    "tipo": "PIX",                       # Literal["PIX","TED","DOC","DESCONHECIDO"]
+    "banco_destino": "Nubank",           # str | None
+    "favorecido": "João Silva",          # str | None
 }
 ```
 
@@ -46,6 +46,7 @@ o dict de dados ganha o campo `fallback`:
 - `motivo` é sempre uma categoria segura (`authentication`, `timeout`, `parse`, `unknown`) —
   **nunca** contém chave (nem mascarada), `request_id` ou texto cru do provedor.
 - `provedores_falhos` lista as specs (`provedor:modelo`) que falharam antes do sucesso.
+- Recuperação no mesmo modelo (retry) **não** gera o campo `fallback` — apenas uma troca real de provedor é reportada.
 - O `status` HTTP permanece implícito (200) — não é adicionado campo `status` no sucesso.
 - O detalhe técnico cru vai apenas para o log do servidor.
 
@@ -97,6 +98,7 @@ status = 200 if "erro" not in resultado else erro_para_status(resultado)
 | Formato não suportado | Retorna error dict com status 415 |
 | Todos os provedores falham | Retorna error dict com status 502 |
 | Comprovante não identificado | Retorna error dict com status 422 |
+| `force_retry=True` | Ignora o cache do provedor que funcionou e reinicia pela lista de `MODEL_FALLBACK_LIST` |
 
 ### Exemplo de Uso no Django
 

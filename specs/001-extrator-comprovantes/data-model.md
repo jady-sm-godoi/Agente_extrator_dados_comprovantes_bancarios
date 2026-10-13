@@ -1,5 +1,9 @@
 # Data Model: Módulo Extrator de Comprovantes Bancários
 
+> **Nota de revisão (2026-10-13)**: Sincronizado com a implementação v0.2.0 —
+> validações reais do schema, formato do dict de erro (`erro`/`status`/`motivo`)
+> e fluxo com DeepSeek Vision (fallback Groq).
+
 ## Entidade Principal: BankReceipt
 
 Schema Pydantic que representa os dados extraídos de um comprovante bancário.
@@ -15,6 +19,7 @@ class BankReceipt(BaseModel):
     valor: Decimal = Field(
         ...,
         description="Valor da transação em formato Decimal (ex: 1234.56)",
+        gt=0,
         examples=["1234.56", "99.90"],
     )
     data_transacao: date = Field(
@@ -53,7 +58,7 @@ class BankReceipt(BaseModel):
 | Campo | Regra |
 |-------|-------|
 | `valor` | Deve ser positivo (> 0) |
-| `data_transacao` | Deve ser uma data válida, não futura (tolerância de 1 dia para fuso) |
+| `data_transacao` | Deve ser uma data válida, parseável nos formatos DD/MM/AAAA ou ISO YYYY-MM-DD |
 | `numero_controle` | Opcional, mas se presente deve ter ≤ 64 caracteres |
 | `banco_origem` | Opcional, ≤ 100 caracteres |
 | `tipo` | Apenas PIX, TED, DOC, DESCONHECIDO |
@@ -78,7 +83,9 @@ class BankReceipt(BaseModel):
 
 ```json
 {
-  "erro": "Não foi possível extrair dados do comprovante. Verifique se o arquivo é um comprovante bancário válido."
+  "erro": "Não foi possível extrair os dados do comprovante.",
+  "status": 422,
+  "motivo": "parse_error"
 }
 ```
 
@@ -111,7 +118,7 @@ Detectar tipo:
     └── Extensão .png/.jpg/.jpeg → image_processor → imagem PIL otimizada
     │
     ▼
-Agno Agent (Groq Vision) → BankReceipt Pydantic
+Agno Agent (DeepSeek Vision, fallback Groq) → BankReceipt Pydantic
     │
     ▼
 BankReceipt.model_dump() → dict (JSON-serializável)

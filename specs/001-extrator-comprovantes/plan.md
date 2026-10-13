@@ -4,19 +4,23 @@
 
 **Input**: Feature specification from `specs/001-extrator-comprovantes/spec.md`
 
+> **Nota de revisão (2026-10-13)**: Plano sincronizado com a implementação v0.2.0 —
+> pacote `bank_receipt_extractor`, `extract_receipt()`, DeepSeek (`deepseek-flash`)
+> primário com fallback Groq via `MODEL_FALLBACK_LIST`, Python ≥3.12.
+
 ## Summary
 
-Módulo Python para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC) usando Agno + Groq (Llama 3.2 90B Vision). Aceita PDF ou imagem, processa e retorna JSON validado com valor, data, número de controle, banco de origem, tipo, banco destino e favorecido. Integração com Django via função bridge `extrair_comprovante()`.
+Módulo Python (pacote `bank_receipt_extractor`) para extração automatizada de dados de comprovantes bancários brasileiros (PIX, TED, DOC) usando Agno + DeepSeek (`deepseek-flash`) com fallback configurável para Groq. Aceita PDF ou imagem, processa e retorna JSON validado com valor, data, número de controle, banco de origem, tipo, banco destino e favorecido. Integração com Django via função bridge `extract_receipt()`.
 
 ## Technical Context
 
-**Language/Version**: Python ≥3.13
+**Language/Version**: Python ≥3.12
 
-**Primary Dependencies**: agno, groq, pdf2image, Pillow, pydantic, python-dotenv
+**Primary Dependencies**: agno, groq, openai (SDK usado pelo Agno para DeepSeek), pdf2image, Pillow, pydantic, python-dotenv
 
 **Storage**: N/A (processamento stateless, sem persistência)
 
-**Testing**: pytest (pode ser adicionado posteriormente)
+**Testing**: pytest + pytest-cov (123 testes, 100% de cobertura)
 
 **Target Platform**: Linux server (onde o Django estiver hospedado); poppler-utils necessário no sistema
 
@@ -24,7 +28,7 @@ Módulo Python para extração automatizada de dados de comprovantes bancários 
 
 **Performance Goals**: Extração < 10s para imagem, < 15s para PDF de até 5 páginas
 
-**Constraints**: Requer internet para API Groq; poppler-utils instalado no servidor; imagem/página de PDF com resolução mínima de 300 DPI para extração confiável
+**Constraints**: Requer internet para API DeepSeek (fallback Groq opcional via `MODEL_FALLBACK_LIST`); poppler-utils instalado no servidor; imagem/página de PDF com resolução mínima de 300 DPI para extração confiável
 
 **Scale/Scope**: Uso em formulário de inscrição em evento (dezenas a centenas de extrações por mês)
 
@@ -57,22 +61,24 @@ specs/001-extrator-comprovantes/
 ### Source Code (repository root)
 
 ```text
-agente_extrator/
+bank_receipt_extractor/
 ├── __init__.py
-├── schemas.py            # Pydantic models
-├── utils.py              # Brazilian format parsers
-├── agent.py              # Agno agent setup with Groq
+├── errors.py              # Erros tipados + mapeamento HTTP (erro_para_status)
+├── schemas.py             # Pydantic models
+├── utils.py               # Brazilian format parsers
+├── agent.py               # Agno agent setup (DeepSeek + fallback Groq)
 ├── processors/
 │   ├── __init__.py
-│   ├── pdf_processor.py  # PDF → image conversion
+│   ├── pdf_processor.py   # PDF → image conversion
 │   └── image_processor.py # Image preprocessing
-└── integration.py        # Django bridge function
+└── integration.py         # Django bridge function
 
-exemplo_uso.py            # Standalone usage example
-.env.example              # Environment variables template
+tests/                     # pytest suite (123 testes, 100% cobertura)
+usage_example.py           # Standalone usage example
+.env.example               # Environment variables template
 ```
 
-**Structure Decision**: Single Python package (`agente_extrator/`) sem subpacotes aninhados. Cada processador em módulo separado. A raiz do projeto contém apenas a configuração (`pyproject.toml`, `.env.example`) e o exemplo de uso.
+**Structure Decision**: Single Python package (`bank_receipt_extractor/`) sem subpacotes aninhados. Cada processador em módulo separado. A raiz do projeto contém apenas a configuração (`pyproject.toml`, `.env.example`) e o exemplo de uso.
 
 ## Complexity Tracking
 

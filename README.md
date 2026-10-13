@@ -1,6 +1,6 @@
 # Receipt Extractor / Extrator de Comprovantes
 
-**v0.2.0** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
+**v0.2.1** · Python ≥3.12 · [Agno](https://agno.build) + [DeepSeek](https://deepseek.com) (+ [Groq](https://groq.com) fallback)
 
 ---
 
@@ -56,7 +56,7 @@ The extractor tries the models in `MODEL_FALLBACK_LIST` in order and caches the 
 }
 ```
 
-`motivo` is a safe category (`authentication`, `timeout`, `parse`, `unknown`) — it never contains API keys, request IDs or raw provider messages. The HTTP status stays implicit (200) on success; error responses still use `status`/`motivo` with `erro_para_status()`.
+`motivo` is a safe category (`authentication`, `timeout`, `parse`, `unknown`) — it never contains API keys, request IDs or raw provider messages. If the same model recovers on a retry, the output has no `fallback` field — only a real provider switch is reported. The HTTP status stays implicit (200) on success; error responses still use `status`/`motivo` with `erro_para_status()`.
 
 ## System Dependency: poppler-utils
 
@@ -294,7 +294,7 @@ document.getElementById("id_receipt").addEventListener("change", async (e) => {
 │   │   └── pdf_processor.py      # PDF → image (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (50MB limit, logging)
 │
-├── tests/                        # Test suite (121 tests, 100% coverage)
+├── tests/                        # Test suite (123 tests, 100% coverage)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -375,7 +375,7 @@ O extrator tenta os modelos de `MODEL_FALLBACK_LIST` em ordem e cacheia o primei
 }
 ```
 
-`motivo` é sempre uma categoria segura (`authentication`, `timeout`, `parse`, `unknown`) — nunca contém chave de API, `request_id` ou mensagem crua do provedor. O `status` HTTP continua implícito (200) no sucesso; respostas de erro seguem usando `status`/`motivo` com `erro_para_status()`.
+`motivo` é sempre uma categoria segura (`authentication`, `timeout`, `parse`, `unknown`) — nunca contém chave de API, `request_id` ou mensagem crua do provedor. Se o mesmo modelo se recuperar em um retry, a saída não inclui o campo `fallback` — apenas uma troca real de provedor é reportada. O `status` HTTP continua implícito (200) no sucesso; respostas de erro seguem usando `status`/`motivo` com `erro_para_status()`.
 
 ### Dependência de Sistema: poppler-utils
 
@@ -611,7 +611,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 │   │   └── pdf_processor.py      # PDF → imagem (pdf2image)
 │   └── integration.py            # Bridge: extract_receipt() (limite 50MB, logging)
 │
-├── tests/                        # Suite de testes (121 testes, 100% cobertura)
+├── tests/                        # Suite de testes (123 testes, 100% cobertura)
 │   ├── test_schemas.py
 │   ├── test_utils.py
 │   ├── test_agent.py
@@ -643,7 +643,7 @@ document.getElementById("id_comprovante").addEventListener("change", async (e) =
 ruff check bank_receipt_extractor tests   # Lint
 mypy bank_receipt_extractor tests         # Type check
 
-# Tests (101 testes, 100% cobertura)
+# Tests (123 testes, 100% cobertura)
 pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 ```
 
@@ -652,5 +652,5 @@ pytest --cov=bank_receipt_extractor --cov-report=term-missing -v
 - **Modularity**: Independent package, Django bridge via `extract_receipt()`
 - **Security**: API key via `.env` (gitignored), file size limit (50MB), 30s model timeout, MIME magic byte validation, structured logging, explicit `del` of sensitive data in memory, `pip-audit` for CVE scanning
 - **Strong Typing**: Pydantic schemas for input/output validation
-- **Testability**: 121 tests with 100% code coverage, mocked vision APIs
+- **Testability**: 123 tests with 100% code coverage, mocked vision APIs
 - **Simplicity**: YAGNI — only the requested fields, no extra abstractions
